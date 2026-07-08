@@ -1,0 +1,12 @@
+services:
+  minhas-contas:
+    build: .
+    container_name: minhas-contas
+    ports:
+      - "8000:8000"
+    volumes:
+      - contas-data:/data
+    restart: unless-stopped
+
+volumes:
+  contas-data:

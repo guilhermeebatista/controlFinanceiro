@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minhas Contas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/vendor/chart.umd.js"></script>
+</head>
+<body>
+<div id="auth-screen">
+  <div class="auth-card">
+    <h1>💰 Minhas Contas</h1>
+    <p class="auth-tagline">Organize seus gastos pessoais e veja para onde vai o seu dinheiro.</p>
+    <div class="auth-tabs">
+      <button type="button" data-mode="login" class="active">Entrar</button>
+      <button type="button" data-mode="register">Criar conta</button>
+    </div>
+    <form id="auth-form">
+      <label id="au-nome-label">Nome completo<input id="au-nome" autocomplete="name"></label>
+      <label>E-mail<input id="au-user" type="email" autocomplete="email" required></label>
+      <label>Senha<input id="au-pass" type="password" autocomplete="current-password" required></label>
+      <p class="auth-error" id="au-error" hidden></p>
+      <button type="submit" class="btn primary" id="au-submit">Entrar</button>
+    </form>
+    <p class="muted" id="au-hint"></p>
+  </div>
+</div>
+
+<header class="topbar app-only">
+  <h1>💰 Minhas Contas</h1>
+  <nav id="tabs">
+    <button data-tab="dashboard" class="active">Dashboard</button>
+    <button data-tab="lancamentos">Lançamentos</button>
+    <button data-tab="pessoas">Por Pessoa</button>
+    <button data-tab="fluxo">Fluxo</button>
+    <button data-tab="patrimonio">Patrimônio</button>
+    <button data-tab="projetos">Projetos</button>
+    <button data-tab="registro">Registro</button>
+    <button data-tab="configuracao">Configuração</button>
+  </nav>
+  <div class="userbox">
+    <span id="user-name"></span>
+    <button class="btn small" id="logout-btn">Sair</button>
+  </div>
+</header>
+
+<main class="app-only">
+  <!-- DASHBOARD -->
+  <section id="tab-dashboard" class="tab active">
+    <div class="filters">
+      <label>Ano <select id="f-year"></select></label>
+      <label>Mês <select id="f-month">
+        <option value="">Todos</option>
+        <option value="1">Jan</option><option value="2">Fev</option><option value="3">Mar</option>
+        <option value="4">Abr</option><option value="5">Mai</option><option value="6">Jun</option>
+        <option value="7">Jul</option><option value="8">Ago</option><option value="9">Set</option>
+        <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
+      </select></label>
+      <label>Status <select id="f-status">
+        <option value="Todos">Todos</option>
+        <option value="Realizado">Realizado</option>
+        <option value="Previsto">Previsto</option>
+      </select></label>
+    </div>
+    <div class="tiles">
+      <div class="tile"><span class="tile-label">Receitas</span><span class="tile-value" id="t-receitas">–</span></div>
+      <div class="tile"><span class="tile-label">Despesas</span><span class="tile-value" id="t-despesas">–</span></div>
+      <div class="tile"><span class="tile-label">Resultado</span><span class="tile-value" id="t-resultado">–</span></div>
+      <div class="tile"><span class="tile-label">Lançamentos</span><span class="tile-value" id="t-lancamentos">–</span></div>
+    </div>
+    <div class="grid-2">
+      <div class="card wide"><h3>Receitas × Despesas por mês</h3><div class="chartbox"><canvas id="c-monthly"></canvas></div></div>
+      <div class="card wide"><h3>Saldo acumulado</h3><div class="chartbox"><canvas id="c-saldo"></canvas></div></div>
+      <div class="card"><h3>Gastos por categoria</h3><div class="chartbox tall"><canvas id="c-categoria"></canvas></div></div>
+      <div class="card"><h3>Maiores gastos (subcategoria)</h3><div class="chartbox tall"><canvas id="c-subcategoria"></canvas></div></div>
+      <div class="card"><h3>Gastos por pessoa</h3><div class="chartbox"><canvas id="c-pessoa"></canvas></div></div>
+      <div class="card"><h3>Operacional × Não operacional</h3><div class="chartbox"><canvas id="c-grupo"></canvas></div></div>
+    </div>
+  </section>
+
+  <!-- LANCAMENTOS -->
+  <section id="tab-lancamentos" class="tab">
+    <div class="filters">
+      <input id="l-q" type="search" placeholder="Buscar descrição, pessoa, obs…">
+      <label>Ano <select id="l-year"></select></label>
+      <label>Mês <select id="l-month"></select></label>
+      <label>Status <select id="l-status">
+        <option value="Todos">Todos</option><option>Realizado</option><option>Previsto</option>
+      </select></label>
+      <label>Tipo <select id="l-tipo">
+        <option value="">Todos</option><option>RECEITA</option><option>DESPESA</option>
+      </select></label>
+      <button class="btn primary" id="l-new">+ Novo lançamento</button>
+    </div>
+    <div class="card">
+      <div class="bulkbar" id="l-bulkbar" hidden>
+        <span id="l-selcount">0 selecionados</span>
+        <button class="btn primary" id="l-bulkedit">✏️ Alterar selecionados</button>
+        <button class="btn danger" id="l-bulkdel">🗑 Excluir selecionados</button>
+        <button class="btn" id="l-clearsel">Limpar seleção</button>
+      </div>
+      <div class="table-scroll">
+        <table id="l-table">
+          <thead><tr>
+            <th class="chk"><input type="checkbox" id="l-selall" title="Marcar todos"></th>
+            <th>Venc.</th><th>Classificação</th><th>Obs</th><th>Pessoa</th>
+            <th>Instituição</th><th>Status</th><th class="num">Valor</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="muted" id="l-count"></p>
+    </div>
+  </section>
+
+  <!-- PESSOAS -->
+  <section id="tab-pessoas" class="tab">
+    <div class="filters">
+      <label>Ano <select id="pb-year"></select></label>
+      <label>Mês <select id="pb-month"></select></label>
+      <label>Status <select id="pb-status">
+        <option value="Todos">Todos</option>
+        <option value="Previsto">A vencer (Previsto)</option>
+        <option value="Realizado">Realizado</option>
+      </select></label>
+    </div>
+    <div class="tiles">
+      <div class="tile"><span class="tile-label">Total a pagar</span><span class="tile-value neg" id="pb-pagar">–</span></div>
+      <div class="tile"><span class="tile-label">Total a receber</span><span class="tile-value pos" id="pb-receber">–</span></div>
+      <div class="tile"><span class="tile-label">Saldo líquido</span><span class="tile-value" id="pb-saldo">–</span></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Detalhe por pessoa</h3>
+        <div class="table-scroll">
+          <table id="pb-table">
+            <thead><tr>
+              <th>Pessoa</th><th class="num">A pagar</th><th class="num">A receber</th>
+              <th class="num">Saldo</th><th class="num">Lanç.</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="muted">Saldo positivo = você recebe mais do que paga dessa pessoa.</p>
+      </div>
+      <div class="card">
+        <h3>A pagar × A receber por pessoa</h3>
+        <div class="chartbox tall"><canvas id="c-pessoas-balanco"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLUXO -->
+  <section id="tab-fluxo" class="tab">
+    <div class="filters">
+      <label>Status <select id="x-status">
+        <option value="Todos">Todos</option><option>Realizado</option><option>Previsto</option>
+      </select></label>
+      <label>Grupo <select id="x-grupo">
+        <option value="">Todos</option><option>OPERACIONAL</option><option value="NÃO OPERACIONAL">NÃO OPERACIONAL</option>
+      </select></label>
+      <label><input type="checkbox" id="x-detail"> Detalhar subcategorias</label>
+    </div>
+    <div class="card">
+      <div class="table-scroll" id="x-wrap"></div>
+    </div>
+  </section>
+
+  <!-- PATRIMONIO -->
+  <section id="tab-patrimonio" class="tab">
+    <div class="grid-2">
+      <div class="card wide">
+        <h3>Investimentos <button class="btn small" data-add="investments">+ Adicionar</button></h3>
+        <div class="table-scroll"><table id="p-investments"></table></div>
+      </div>
+      <div class="card">
+        <h3>Bens <button class="btn small" data-add="assets">+ Adicionar</button></h3>
+        <div class="table-scroll"><table id="p-assets"></table></div>
+      </div>
+      <div class="card">
+        <h3>Dívidas <button class="btn small" data-add="debts">+ Adicionar</button></h3>
+        <div class="table-scroll"><table id="p-debts"></table></div>
+      </div>
+      <div class="card wide"><h3>Resumo</h3><div id="p-summary" class="tiles"></div></div>
+    </div>
+  </section>
+
+  <!-- PROJETOS -->
+  <section id="tab-projetos" class="tab">
+    <div class="card">
+      <h3>Projetos <button class="btn small" data-add="projects">+ Adicionar</button></h3>
+      <div class="table-scroll"><table id="j-table"></table></div>
+    </div>
+    <div class="card">
+      <h3>Necessidade de reservas</h3>
+      <div id="j-summary" class="tiles"></div>
+      <p class="muted">Reserva de emergência = fator × custo de vida mensal (definidos em Configuração).</p>
+    </div>
+  </section>
+
+  <!-- REGISTRO -->
+  <section id="tab-registro" class="tab">
+    <div class="grid-2">
+      <div class="card">
+        <h3>Arquivos OFX importados <button class="btn small" data-add="ofx">+ Adicionar</button></h3>
+        <div class="table-scroll"><table id="r-ofx"></table></div>
+      </div>
+      <div class="card">
+        <h3>Pagamentos de cartão <button class="btn small" data-add="card-payments">+ Adicionar</button></h3>
+        <div class="table-scroll"><table id="r-cards"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONFIGURACAO -->
+  <section id="tab-configuracao" class="tab">
+    <div class="grid-2">
+      <div class="card wide">
+        <h3>Importar planilha</h3>
+        <p class="muted">Envie sua planilha “Controle Financ. Pessoal” (.xlsx ou .xlsm) para puxar
+          lançamentos, categorias, projetos e patrimônio direto para a sua conta.</p>
+        <div class="filters">
+          <input type="file" id="imp-file" accept=".xlsx,.xlsm">
+          <label><input type="checkbox" id="imp-replace"> Substituir meus lançamentos atuais antes de importar</label>
+          <button class="btn primary" id="imp-btn">Importar</button>
+        </div>
+        <p class="muted" id="imp-result"></p>
+      </div>
+      <div class="card">
+        <h3>Parâmetros</h3>
+        <form id="s-form" class="form-grid">
+          <label>Receita mensal (R$)<input type="number" step="0.01" name="receita_mensal"></label>
+          <label>Custo de vida mensal (R$)<input type="number" step="0.01" name="custo_vida_mensal"></label>
+          <label>Fator da reserva<input type="number" step="1" name="fator_reserva"></label>
+          <button class="btn primary">Salvar</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3>Pessoas <button class="btn small" data-add="people">+ Adicionar</button></h3>
+        <div class="table-scroll"><table id="s-people"></table></div>
+      </div>
+      <div class="card wide">
+        <h3>Instituições / Cartões <button class="btn small" data-add="institutions">+ Adicionar</button></h3>
+        <div class="table-scroll"><table id="s-institutions"></table></div>
+      </div>
+      <div class="card wide">
+        <h3>Classificações <button class="btn small" id="s-newcat">+ Adicionar</button></h3>
+        <div class="filters">
+          <input id="s-catq" type="search" placeholder="Filtrar classificações…">
+        </div>
+        <div class="table-scroll tall"><table id="s-categories"></table></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="bulk-modal">
+  <form id="bulk-form" method="dialog">
+    <h3 id="bulk-title">Alterar selecionados</h3>
+    <div class="form-grid">
+      <label class="full">Campo a alterar
+        <select id="be-field">
+          <option value="status">Status</option>
+          <option value="pessoa">Pessoa</option>
+          <option value="instituicao">Instituição</option>
+          <option value="classificacao">Classificação</option>
+          <option value="dt_venc">Data de vencimento</option>
+        </select>
+      </label>
+      <label class="full">Novo valor
+        <span id="be-valuewrap"></span>
+      </label>
+    </div>
+    <p class="muted" id="be-hint"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="bulk-cancel">Cancelar</button>
+      <button type="submit" class="btn primary">Aplicar a todos</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="modal">
+  <form id="modal-form" method="dialog">
+    <h3 id="modal-title"></h3>
+    <div id="modal-fields" class="form-grid"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="modal-cancel">Cancelar</button>
+      <button type="submit" class="btn primary" id="modal-save">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

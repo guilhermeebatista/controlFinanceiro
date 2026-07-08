@@ -1,0 +1,964 @@
+/* Minhas Contas — SPA */
+"use strict";
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => [...document.querySelectorAll(sel)];
+
+const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const money = (v) => fmt.format(v || 0);
+const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const mesLabel = (ym) => {
+  const [y, m] = ym.split("-");
+  return `${MESES[+m - 1]}/${y.slice(2)}`;
+};
+const dateBR = (iso) => (iso ? iso.split("-").reverse().join("/") : "");
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (res.status === 401) {
+    showAuth();
+    throw new Error("Não autenticado");
+  }
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { msg = (await res.json()).detail || msg; } catch {}
+    alert("Erro: " + msg);
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/* (Re)constrói o seletor de anos preservando a seleção atual. */
+function fillYears(sel, years) {
+  const atual = sel.value;
+  sel.innerHTML = "";
+  sel.append(new Option("Todos", ""));
+  (years || []).forEach((y) => sel.append(new Option(y, y)));
+  sel.value = (years || []).includes(atual) ? atual : "";
+}
+
+/* Preenche meses uma única vez (não mudam). */
+function ensureMonths(sel) {
+  if (sel.options.length) return;
+  sel.append(new Option("Todos", ""));
+  MESES.forEach((m, i) => sel.append(new Option(m, i + 1)));
+}
+
+/* ---------- Tabs ---------- */
+const loaders = {};
+$$("#tabs button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    $$("#tabs button").forEach((b) => b.classList.toggle("active", b === btn));
+    $$(".tab").forEach((t) => t.classList.remove("active"));
+    $("#tab-" + btn.dataset.tab).classList.add("active");
+    loaders[btn.dataset.tab]?.();
+  });
+});
+
+/* ---------- Modal genérico ---------- */
+const modal = $("#modal");
+let modalSubmit = null;
+$("#modal-cancel").addEventListener("click", () => modal.close());
+$("#modal-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  modalSubmit?.();
+});
+
+function openForm(title, fields, values, onSave) {
+  $("#modal-title").textContent = title;
+  const box = $("#modal-fields");
+  box.innerHTML = "";
+  for (const f of fields) {
+    const label = document.createElement("label");
+    if (f.full) label.className = "full";
+    label.append(f.label);
+    let input;
+    if (f.type === "select") {
+      input = document.createElement("select");
+      for (const opt of f.options) {
+        const o = document.createElement("option");
+        if (Array.isArray(opt)) { o.value = opt[0]; o.textContent = opt[1]; }
+        else { o.value = o.textContent = opt; }
+        input.append(o);
+      }
+    } else if (f.type === "textarea") {
+      input = document.createElement("textarea");
+      input.rows = 2;
+    } else {
+      input = document.createElement("input");
+      input.type = f.type || "text";
+      if (f.type === "number") input.step = f.step || "0.01";
+    }
+    input.name = f.name;
+    if (f.required) input.required = true;
+    if (f.list) input.setAttribute("list", f.list);
+    const v = values?.[f.name];
+    if (v !== undefined && v !== null) input.value = v;
+    label.append(input);
+    box.append(label);
+  }
+  modalSubmit = () => {
+    const data = {};
+    for (const f of fields) {
+      let v = box.querySelector(`[name="${f.name}"]`).value;
+      if (f.type === "number") v = v === "" ? 0 : parseFloat(v);
+      if (v === "") v = null;
+      data[f.name] = v;
+    }
+    onSave(data).then(() => modal.close());
+  };
+  modal.showModal();
+}
+
+/* ---------- Dashboard ---------- */
+const charts = {};
+function renderChart(id, config) {
+  charts[id]?.destroy();
+  charts[id] = new Chart($(id), config);
+}
+
+function baseOpts(extra = {}) {
+  const ink = cssVar("--text-secondary");
+  const grid = cssVar("--grid");
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: ink, boxWidth: 12, boxHeight: 12 } },
+      tooltip: {
+        callbacks: {
+          label: (c) => {
+            const p = c.parsed;
+            const v = (p && typeof p === "object")
+              ? (c.chart.options.indexAxis === "y" ? p.x : p.y)
+              : p;
+            return `${c.dataset.label || c.label}: ${money(v)}`;
+          },
+        },
+      },
+      ...extra.plugins,
+    },
+    scales: extra.noScales ? undefined : {
+      x: { ticks: { color: ink }, grid: { color: "transparent" }, ...extra.x },
+      y: { ticks: { color: ink, callback: (v) => money(v) }, grid: { color: grid }, ...extra.y },
+    },
+  };
+}
+
+async function loadDashboard() {
+  const year = $("#f-year").value;
+  const month = $("#f-month").value;
+  const status = $("#f-status").value;
+  const qs = new URLSearchParams();
+  if (year) qs.set("year", year);
+  if (month) qs.set("month", month);
+  if (status && status !== "Todos") qs.set("status", status);
+  const d = await api("/api/dashboard?" + qs);
+
+  // reconstrói anos a cada carga (preserva seleção); auto-seleciona o ano atual na 1ª vez
+  const ySel = $("#f-year");
+  const primeiraVez = !ySel.options.length;
+  fillYears(ySel, d.years);
+  if (primeiraVez) {
+    const current = String(new Date().getFullYear());
+    if (d.years.includes(current)) {
+      ySel.value = current;
+      return loadDashboard();
+    }
+  }
+
+  const t = d.totals;
+  $("#t-receitas").textContent = money(t.receitas);
+  $("#t-receitas").className = "tile-value pos";
+  $("#t-despesas").textContent = money(t.despesas);
+  $("#t-despesas").className = "tile-value neg";
+  $("#t-resultado").textContent = money(t.resultado);
+  $("#t-resultado").className = "tile-value " + (t.resultado >= 0 ? "pos" : "neg");
+  $("#t-lancamentos").textContent = t.lancamentos;
+
+  const labels = d.monthly.map((m) => mesLabel(m.mes));
+  const receita = cssVar("--series-receita");
+  const despesa = cssVar("--series-despesa");
+  const blue = cssVar("--seq-450");
+  const blueLight = cssVar("--seq-300");
+
+  renderChart("#c-monthly", {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "Receitas", data: d.monthly.map((m) => m.receitas), backgroundColor: receita, borderRadius: 4, maxBarThickness: 26 },
+        { label: "Despesas", data: d.monthly.map((m) => m.despesas), backgroundColor: despesa, borderRadius: 4, maxBarThickness: 26 },
+      ],
+    },
+    options: baseOpts(),
+  });
+
+  renderChart("#c-saldo", {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Saldo acumulado",
+        data: d.monthly.map((m) => m.acumulado),
+        borderColor: blue,
+        backgroundColor: blue + "22",
+        fill: true,
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.25,
+      }],
+    },
+    options: baseOpts(),
+  });
+
+  const hbar = (items, labelKey, color) => ({
+    type: "bar",
+    data: {
+      labels: items.map((i) => i[labelKey]),
+      datasets: [{ label: "Total", data: items.map((i) => i.total), backgroundColor: color, borderRadius: 4, maxBarThickness: 18 }],
+    },
+    options: {
+      ...baseOpts({ plugins: { legend: { display: false } } }),
+      indexAxis: "y",
+      scales: {
+        x: { ticks: { color: cssVar("--text-secondary"), callback: (v) => money(v) }, grid: { color: cssVar("--grid") } },
+        y: { ticks: { color: cssVar("--text-secondary") }, grid: { color: "transparent" } },
+      },
+    },
+  });
+
+  renderChart("#c-categoria", hbar(d.by_categoria, "categoria", blue));
+  renderChart("#c-subcategoria", hbar(
+    d.by_subcategoria.map((s) => ({ ...s, label: s.subcategoria || s.categoria })),
+    "label", blueLight,
+  ));
+
+  renderChart("#c-pessoa", {
+    type: "bar",
+    data: {
+      labels: d.by_pessoa.map((p) => p.pessoa),
+      datasets: [{ label: "Despesas", data: d.by_pessoa.map((p) => p.total), backgroundColor: blue, borderRadius: 4, maxBarThickness: 40 }],
+    },
+    options: baseOpts({ plugins: { legend: { display: false } } }),
+  });
+
+  renderChart("#c-grupo", {
+    type: "doughnut",
+    data: {
+      labels: d.by_grupo.map((g) => g.grupo),
+      datasets: [{
+        data: d.by_grupo.map((g) => g.total),
+        backgroundColor: [blue, cssVar("--accent")],
+        borderColor: cssVar("--surface-1"),
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom", labels: { color: cssVar("--text-secondary"), boxWidth: 12 } },
+        tooltip: { callbacks: { label: (c) => `${c.label}: ${money(c.parsed)}` } },
+      },
+    },
+  });
+}
+["#f-year", "#f-month", "#f-status"].forEach((s) =>
+  $(s).addEventListener("change", loadDashboard));
+loaders.dashboard = loadDashboard;
+
+/* ---------- Lançamentos ---------- */
+let cachedCategories = [];
+let cachedInstitutions = [];
+let cachedPeople = [];
+
+async function refreshLookups() {
+  const [cats, insts, people] = await Promise.all([
+    api("/api/categories"), api("/api/institutions"), api("/api/people"),
+  ]);
+  cachedCategories = cats.items;
+  cachedInstitutions = insts.items;
+  cachedPeople = people.items;
+}
+
+function txFields() {
+  return [
+    { name: "classificacao", label: "Classificação", type: "select", required: true, full: true,
+      options: cachedCategories.map((c) => c.classificacao) },
+    { name: "valor", label: "Valor (R$)", type: "number", required: true },
+    { name: "status", label: "Status", type: "select", options: ["Previsto", "Realizado"] },
+    { name: "dt_compra", label: "Data compra", type: "date" },
+    { name: "dt_venc", label: "Data vencimento", type: "date", required: true },
+    { name: "instituicao", label: "Instituição", type: "select",
+      options: ["", ...new Set(cachedInstitutions.map((i) => i.nome))] },
+    { name: "pessoa", label: "Pessoa", list: "dl-people" },
+    { name: "obs", label: "Observação", type: "textarea", full: true },
+  ];
+}
+
+function ensurePeopleDatalist() {
+  let dl = $("#dl-people");
+  if (!dl) {
+    dl = document.createElement("datalist");
+    dl.id = "dl-people";
+    document.body.append(dl);
+  }
+  dl.innerHTML = cachedPeople.map((p) => `<option value="${p.nome}">`).join("");
+}
+
+async function loadLancamentos() {
+  await refreshLookups();
+  ensurePeopleDatalist();
+  const ySel = $("#l-year"), mSel = $("#l-month");
+  ensureMonths(mSel);
+  const qs = new URLSearchParams();
+  if (ySel.value) qs.set("year", ySel.value);
+  if (mSel.value) qs.set("month", mSel.value);
+  if ($("#l-status").value !== "Todos") qs.set("status", $("#l-status").value);
+  if ($("#l-tipo").value) qs.set("tipo", $("#l-tipo").value);
+  if ($("#l-q").value) qs.set("q", $("#l-q").value);
+  const { total, items, years } = await api("/api/transactions?" + qs);
+  fillYears(ySel, years);
+  $("#l-count").textContent = `${items.length} de ${total} lançamentos`;
+  const tbody = $("#l-table tbody");
+  tbody.innerHTML = "";
+  for (const tx of items) {
+    const tr = document.createElement("tr");
+    const cls = tx.saldo >= 0 ? "pos" : "neg";
+    tr.innerHTML = `
+      <td class="chk"><input type="checkbox" class="rowchk" data-id="${tx.id}"></td>
+      <td>${dateBR(tx.dt_venc)}</td>
+      <td>${tx.classificacao}</td>
+      <td>${tx.obs || ""}</td>
+      <td>${tx.pessoa || ""}</td>
+      <td>${tx.instituicao || ""}</td>
+      <td>${tx.status}</td>
+      <td class="num ${cls}">${money(tx.saldo)}</td>
+      <td class="row-actions">
+        <button class="btn small" data-edit>✏️</button>
+        <button class="btn small danger" data-del>🗑</button>
+      </td>`;
+    tr.querySelector(".rowchk").addEventListener("change", updateBulkBar);
+    tr.querySelector("[data-edit]").addEventListener("click", () =>
+      openForm("Editar lançamento", txFields(), tx, async (data) => {
+        await api(`/api/transactions/${tx.id}`, { method: "PUT", body: JSON.stringify(data) });
+        loadLancamentos();
+      }));
+    tr.querySelector("[data-del]").addEventListener("click", async () => {
+      if (confirm(`Excluir "${tx.classificacao}" de ${money(tx.valor)}?`)) {
+        await api(`/api/transactions/${tx.id}`, { method: "DELETE" });
+        loadLancamentos();
+      }
+    });
+    tbody.append(tr);
+  }
+  $("#l-selall").checked = false;
+  $("#l-selall").indeterminate = false;
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const checks = $$("#l-table .rowchk");
+  const marcados = checks.filter((c) => c.checked);
+  const bar = $("#l-bulkbar");
+  bar.hidden = marcados.length === 0;
+  $("#l-selcount").textContent =
+    `${marcados.length} selecionado${marcados.length === 1 ? "" : "s"}`;
+  const selall = $("#l-selall");
+  selall.checked = checks.length > 0 && marcados.length === checks.length;
+  selall.indeterminate = marcados.length > 0 && marcados.length < checks.length;
+}
+
+$("#l-selall").addEventListener("change", (e) => {
+  $$("#l-table .rowchk").forEach((c) => (c.checked = e.target.checked));
+  updateBulkBar();
+});
+
+$("#l-clearsel").addEventListener("click", () => {
+  $$("#l-table .rowchk").forEach((c) => (c.checked = false));
+  updateBulkBar();
+});
+
+$("#l-bulkdel").addEventListener("click", async () => {
+  const ids = $$("#l-table .rowchk")
+    .filter((c) => c.checked)
+    .map((c) => +c.dataset.id);
+  if (!ids.length) return;
+  if (!confirm(`Excluir ${ids.length} lançamento${ids.length === 1 ? "" : "s"} selecionado${ids.length === 1 ? "" : "s"}? Esta ação não pode ser desfeita.`)) return;
+  const r = await api("/api/transactions/bulk-delete", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+  await loadLancamentos();
+  alert(`${r.deleted} lançamento(s) excluído(s).`);
+});
+
+/* --- Alteração em lote --- */
+const bulkModal = $("#bulk-modal");
+let bulkIds = [];
+
+function selectFrom(options) {
+  const s = document.createElement("select");
+  for (const o of options) {
+    const opt = document.createElement("option");
+    opt.value = opt.textContent = o;
+    s.append(opt);
+  }
+  return s;
+}
+
+function beRenderValue() {
+  const field = $("#be-field").value;
+  const wrap = $("#be-valuewrap");
+  let ctrl, hint = "";
+  if (field === "status") {
+    ctrl = selectFrom(["Previsto", "Realizado"]);
+  } else if (field === "instituicao") {
+    ctrl = selectFrom(["", ...new Set(cachedInstitutions.map((i) => i.nome))]);
+    hint = "Deixe em branco para limpar a instituição.";
+  } else if (field === "classificacao") {
+    ctrl = selectFrom(cachedCategories.map((c) => c.classificacao));
+    hint = "Grupo, tipo e categoria serão ajustados conforme a classificação escolhida.";
+  } else if (field === "dt_venc") {
+    ctrl = document.createElement("input");
+    ctrl.type = "date";
+  } else {
+    ctrl = document.createElement("input");
+    ctrl.type = "text";
+    ctrl.setAttribute("list", "dl-people");
+    hint = "Deixe em branco para limpar a pessoa.";
+  }
+  ctrl.id = "be-value";
+  wrap.innerHTML = "";
+  wrap.append(ctrl);
+  $("#be-hint").textContent = hint;
+}
+
+$("#l-bulkedit").addEventListener("click", () => {
+  bulkIds = $$("#l-table .rowchk").filter((c) => c.checked).map((c) => +c.dataset.id);
+  if (!bulkIds.length) return;
+  $("#bulk-title").textContent =
+    `Alterar ${bulkIds.length} lançamento${bulkIds.length === 1 ? "" : "s"}`;
+  ensurePeopleDatalist();
+  beRenderValue();
+  bulkModal.showModal();
+});
+$("#be-field").addEventListener("change", beRenderValue);
+$("#bulk-cancel").addEventListener("click", () => bulkModal.close());
+$("#bulk-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const field = $("#be-field").value;
+  const value = $("#be-value").value;
+  const r = await api("/api/transactions/bulk-update", {
+    method: "POST",
+    body: JSON.stringify({ ids: bulkIds, field, value }),
+  });
+  bulkModal.close();
+  await loadLancamentos();
+  alert(`${r.updated} lançamento(s) alterado(s).`);
+});
+
+$("#l-new").addEventListener("click", () =>
+  openForm("Novo lançamento", txFields(),
+    { status: "Previsto", dt_venc: new Date().toISOString().slice(0, 10) },
+    async (data) => {
+      await api("/api/transactions", { method: "POST", body: JSON.stringify(data) });
+      loadLancamentos();
+    }));
+["#l-year", "#l-month", "#l-status", "#l-tipo"].forEach((s) =>
+  $(s).addEventListener("change", loadLancamentos));
+let qTimer;
+$("#l-q").addEventListener("input", () => {
+  clearTimeout(qTimer);
+  qTimer = setTimeout(loadLancamentos, 350);
+});
+loaders.lancamentos = loadLancamentos;
+
+/* ---------- Fluxo ---------- */
+async function loadFluxo() {
+  const qs = new URLSearchParams();
+  if ($("#x-status").value !== "Todos") qs.set("status", $("#x-status").value);
+  if ($("#x-grupo").value) qs.set("grupo", $("#x-grupo").value);
+  const { items } = await api("/api/fluxo?" + qs);
+  const detail = $("#x-detail").checked;
+
+  const months = [...new Set(items.map((i) => i.mes))].sort();
+  const tree = {}; // tipo -> categoria -> {total, subs: {sub: {mes: v}}, meses: {mes: v}}
+  const tipoTotais = {};
+  for (const it of items) {
+    const t = (tree[it.tipo] ??= {});
+    const c = (t[it.categoria] ??= { meses: {}, subs: {} });
+    c.meses[it.mes] = (c.meses[it.mes] || 0) + it.saldo;
+    if (detail && it.subcategoria) {
+      const s = (c.subs[it.subcategoria] ??= {});
+      s[it.mes] = (s[it.mes] || 0) + it.saldo;
+    }
+    (tipoTotais[it.tipo] ??= {})[it.mes] = (tipoTotais[it.tipo][it.mes] || 0) + it.saldo;
+  }
+
+  const cell = (v) => v
+    ? `<td class="num ${v >= 0 ? "pos" : "neg"}">${money(v)}</td>`
+    : `<td class="num muted">–</td>`;
+  const sum = (obj) => months.reduce((a, m) => a + (obj[m] || 0), 0);
+
+  let html = `<table class="sticky-col"><thead><tr><th>Categoria</th>`;
+  html += months.map((m) => `<th class="num">${mesLabel(m)}</th>`).join("");
+  html += `<th class="num">Total</th></tr></thead><tbody>`;
+
+  for (const tipo of ["RECEITA", "DESPESA"]) {
+    if (!tree[tipo]) continue;
+    const tt = tipoTotais[tipo];
+    html += `<tr class="section"><td>${tipo}</td>${months.map((m) => cell(tt[m])).join("")}${cell(sum(tt))}</tr>`;
+    const cats = Object.keys(tree[tipo]).sort();
+    for (const cat of cats) {
+      const c = tree[tipo][cat];
+      html += `<tr class="cat"><td>${cat}</td>${months.map((m) => cell(c.meses[m])).join("")}${cell(sum(c.meses))}</tr>`;
+      if (detail) {
+        for (const sub of Object.keys(c.subs).sort()) {
+          html += `<tr class="sub"><td>${sub}</td>${months.map((m) => cell(c.subs[sub][m])).join("")}${cell(sum(c.subs[sub]))}</tr>`;
+        }
+      }
+    }
+  }
+  const geral = {};
+  for (const tt of Object.values(tipoTotais))
+    for (const [m, v] of Object.entries(tt)) geral[m] = (geral[m] || 0) + v;
+  html += `<tr class="section"><td>Resultado</td>${months.map((m) => cell(geral[m])).join("")}${cell(sum(geral))}</tr>`;
+  html += "</tbody></table>";
+  $("#x-wrap").innerHTML = html;
+}
+["#x-status", "#x-grupo", "#x-detail"].forEach((s) =>
+  $(s).addEventListener("change", loadFluxo));
+loaders.fluxo = loadFluxo;
+
+/* ---------- Por Pessoa ---------- */
+async function loadPessoas() {
+  const ySel = $("#pb-year"), mSel = $("#pb-month");
+  ensureMonths(mSel);
+  const qs = new URLSearchParams();
+  if (ySel.value) qs.set("year", ySel.value);
+  if (mSel.value) qs.set("month", mSel.value);
+  if ($("#pb-status").value !== "Todos") qs.set("status", $("#pb-status").value);
+  const { itens, totais, years } = await api("/api/pessoas-balanco?" + qs);
+  fillYears(ySel, years);
+
+  $("#pb-pagar").textContent = money(totais.a_pagar);
+  $("#pb-receber").textContent = money(totais.a_receber);
+  $("#pb-saldo").textContent = money(totais.saldo);
+  $("#pb-saldo").className = "tile-value " + (totais.saldo >= 0 ? "pos" : "neg");
+
+  const tbody = $("#pb-table tbody");
+  tbody.innerHTML = itens.map((p) => `<tr>
+    <td>${p.pessoa}</td>
+    <td class="num ${p.a_pagar ? "neg" : "muted"}">${p.a_pagar ? money(p.a_pagar) : "–"}</td>
+    <td class="num ${p.a_receber ? "pos" : "muted"}">${p.a_receber ? money(p.a_receber) : "–"}</td>
+    <td class="num ${p.saldo >= 0 ? "pos" : "neg"}">${money(p.saldo)}</td>
+    <td class="num">${p.lancamentos}</td>
+  </tr>`).join("") || `<tr><td colspan="5" class="muted">Nenhum lançamento no período.</td></tr>`;
+
+  renderChart("#c-pessoas-balanco", {
+    type: "bar",
+    data: {
+      labels: itens.map((p) => p.pessoa),
+      datasets: [
+        { label: "A pagar", data: itens.map((p) => p.a_pagar), backgroundColor: cssVar("--series-despesa"), borderRadius: 4, maxBarThickness: 16 },
+        { label: "A receber", data: itens.map((p) => p.a_receber), backgroundColor: cssVar("--series-receita"), borderRadius: 4, maxBarThickness: 16 },
+      ],
+    },
+    options: {
+      ...baseOpts(),
+      indexAxis: "y",
+      scales: {
+        x: { ticks: { color: cssVar("--text-secondary"), callback: (v) => money(v) }, grid: { color: cssVar("--grid") } },
+        y: { ticks: { color: cssVar("--text-secondary") }, grid: { color: "transparent" } },
+      },
+    },
+  });
+}
+["#pb-year", "#pb-month", "#pb-status"].forEach((s) =>
+  $(s).addEventListener("change", loadPessoas));
+loaders.pessoas = loadPessoas;
+
+/* ---------- CRUD genérico ---------- */
+const RESOURCES = {
+  investments: {
+    title: "Investimento", path: "/api/investments",
+    fields: [
+      { name: "instituicao", label: "Instituição", required: true },
+      { name: "fixa_var", label: "Fixa / Variável", type: "select", options: ["", "Fixa", "Variável"] },
+      { name: "prazo_projeto", label: "Prazo/Projeto", type: "select", options: ["", "RESERVA", "CURTO", "MÉDIO", "LONGO", "APOSENTADORIA"] },
+      { name: "ativo", label: "Ativo" },
+      { name: "valor", label: "Valor (R$)", type: "number" },
+    ],
+    cols: [["instituicao", "Instituição"], ["fixa_var", "Fixa/Var"], ["prazo_projeto", "Prazo"], ["ativo", "Ativo"], ["valor", "Valor", money]],
+  },
+  assets: {
+    title: "Bem", path: "/api/assets",
+    fields: [
+      { name: "descricao", label: "Descrição", required: true, full: true },
+      { name: "valor", label: "Valor (R$)", type: "number" },
+      { name: "saldo_devedor", label: "Saldo devedor (R$)", type: "number" },
+    ],
+    cols: [["descricao", "Descrição"], ["valor", "Valor", money], ["saldo_devedor", "Saldo devedor", money],
+      ["_liquido", "Líquido", (_, r) => money(r.valor - r.saldo_devedor)]],
+  },
+  debts: {
+    title: "Dívida", path: "/api/debts",
+    fields: [
+      { name: "descricao", label: "Descrição", required: true, full: true },
+      { name: "num_parcelas", label: "Nº parcelas a pagar", type: "number", step: "1" },
+      { name: "valor_parcela", label: "Valor da parcela (R$)", type: "number" },
+      { name: "saldo_devedor", label: "Saldo devedor (R$)", type: "number" },
+    ],
+    cols: [["descricao", "Descrição"], ["num_parcelas", "Parcelas"], ["valor_parcela", "Parcela", money], ["saldo_devedor", "Saldo devedor", money]],
+  },
+  projects: {
+    title: "Projeto", path: "/api/projects",
+    fields: [
+      { name: "descricao", label: "Descrição", required: true, full: true },
+      { name: "valor", label: "Valor (R$)", type: "number" },
+      { name: "ano", label: "Ano alvo", type: "number", step: "1" },
+      { name: "prazo", label: "Prazo", type: "select", options: ["", "Curto", "Médio", "Longo"] },
+    ],
+    cols: [["descricao", "Descrição"], ["valor", "Valor", money], ["ano", "Ano"], ["prazo", "Prazo"]],
+  },
+  institutions: {
+    title: "Instituição", path: "/api/institutions",
+    fields: [
+      { name: "nome", label: "Nome", required: true },
+      { name: "tipo", label: "Tipo", type: "select", options: ["", "Conta", "Cartão de Crédito", "Dinheiro", "Investimento"] },
+      { name: "saldo_inicial", label: "Saldo inicial (R$)", type: "number" },
+      { name: "descricao", label: "Descrição", full: true },
+    ],
+    cols: [["nome", "Nome"], ["tipo", "Tipo"], ["saldo_inicial", "Saldo inicial", money], ["descricao", "Descrição"]],
+  },
+  people: {
+    title: "Pessoa", path: "/api/people",
+    fields: [{ name: "nome", label: "Nome", required: true, full: true }],
+    cols: [["nome", "Nome"]],
+  },
+  ofx: {
+    title: "Arquivo OFX", path: "/api/ofx",
+    fields: [
+      { name: "data_extracao", label: "Data extração", type: "date" },
+      { name: "banco", label: "Banco" },
+      { name: "periodo", label: "Período" },
+      { name: "nome_arquivo", label: "Nome do arquivo", full: true },
+    ],
+    cols: [["data_extracao", "Data", dateBR], ["banco", "Banco"], ["periodo", "Período"], ["nome_arquivo", "Arquivo"]],
+  },
+  "card-payments": {
+    title: "Pagamento de cartão", path: "/api/card-payments",
+    fields: [
+      { name: "data_pagto", label: "Data pagamento", type: "date" },
+      { name: "cartao", label: "Cartão" },
+      { name: "periodo", label: "Período" },
+      { name: "valor", label: "Valor (R$)", type: "number" },
+    ],
+    cols: [["data_pagto", "Data", dateBR], ["cartao", "Cartão"], ["periodo", "Período"], ["valor", "Valor", money]],
+  },
+};
+
+const RESOURCE_TABLES = {
+  investments: "#p-investments", assets: "#p-assets", debts: "#p-debts",
+  projects: "#j-table", institutions: "#s-institutions", people: "#s-people",
+  ofx: "#r-ofx", "card-payments": "#r-cards",
+};
+
+async function loadResource(key) {
+  const r = RESOURCES[key];
+  const { items } = await api(r.path);
+  const table = $(RESOURCE_TABLES[key]);
+  let html = "<thead><tr>" + r.cols.map(([, l]) => `<th>${l}</th>`).join("") + "<th></th></tr></thead><tbody>";
+  html += items.map((it) => "<tr>" + r.cols.map(([k, , f]) =>
+    `<td>${f ? f(it[k], it) : (it[k] ?? "")}</td>`).join("") +
+    `<td class="row-actions"><button class="btn small" data-edit="${it.id}">✏️</button>
+     <button class="btn small danger" data-del="${it.id}">🗑</button></td></tr>`).join("");
+  html += "</tbody>";
+  if (!items.length) html += `<caption class="muted">Nenhum registro — use “+ Adicionar”.</caption>`;
+  table.innerHTML = html;
+  table.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
+    const item = items.find((i) => i.id == b.dataset.edit);
+    openForm("Editar " + r.title.toLowerCase(), r.fields, item, async (data) => {
+      await api(`${r.path}/${item.id}`, { method: "PUT", body: JSON.stringify(data) });
+      reloadResourceGroup(key);
+    });
+  }));
+  table.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
+    if (confirm("Excluir este registro?")) {
+      await api(`${r.path}/${b.dataset.del}`, { method: "DELETE" });
+      reloadResourceGroup(key);
+    }
+  }));
+}
+
+function reloadResourceGroup(key) {
+  loadResource(key);
+  if (["investments", "assets", "debts"].includes(key)) loadPatrimonioSummary();
+  if (key === "projects") loadProjetosSummary();
+}
+
+$$("[data-add]").forEach((btn) => btn.addEventListener("click", () => {
+  const key = btn.dataset.add;
+  const r = RESOURCES[key];
+  openForm("Novo " + r.title.toLowerCase(), r.fields, null, async (data) => {
+    await api(r.path, { method: "POST", body: JSON.stringify(data) });
+    reloadResourceGroup(key);
+  });
+}));
+
+/* ---------- Patrimônio ---------- */
+async function loadPatrimonioSummary() {
+  const [inv, ass, deb] = await Promise.all([
+    api("/api/investments"), api("/api/assets"), api("/api/debts"),
+  ]);
+  const invTotal = inv.items.reduce((a, i) => a + i.valor, 0);
+  const bensLiq = ass.items.reduce((a, i) => a + i.valor - i.saldo_devedor, 0);
+  const dividas = deb.items.reduce((a, i) => a + i.saldo_devedor, 0);
+  const patrimonio = invTotal + bensLiq - dividas;
+  $("#p-summary").innerHTML = [
+    ["Investimentos", invTotal, "pos"],
+    ["Bens (líquido)", bensLiq, "pos"],
+    ["Dívidas", dividas, "neg"],
+    ["Patrimônio líquido", patrimonio, patrimonio >= 0 ? "pos" : "neg"],
+  ].map(([l, v, c]) => `<div class="tile"><span class="tile-label">${l}</span>
+    <span class="tile-value ${c}">${money(v)}</span></div>`).join("");
+}
+loaders.patrimonio = () => {
+  ["investments", "assets", "debts"].forEach(loadResource);
+  loadPatrimonioSummary();
+};
+
+/* ---------- Projetos ---------- */
+async function loadProjetosSummary() {
+  const s = await api("/api/projects/summary");
+  const n = s.necessidade;
+  $("#j-summary").innerHTML = [
+    ["Reserva emergência", n["RESERVA"]],
+    ["Curto prazo", n["CURTO"]],
+    ["Médio prazo", n["MÉDIO"]],
+    ["Longo prazo", n["LONGO"]],
+    ["Aplicado hoje", s.aplicado_total],
+  ].map(([l, v]) => `<div class="tile"><span class="tile-label">${l}</span>
+    <span class="tile-value">${money(v)}</span></div>`).join("");
+}
+loaders.projetos = () => {
+  loadResource("projects");
+  loadProjetosSummary();
+};
+
+/* ---------- Registro ---------- */
+loaders.registro = () => {
+  loadResource("ofx");
+  loadResource("card-payments");
+};
+
+/* ---------- Configuração ---------- */
+async function loadSettings() {
+  const s = await api("/api/settings");
+  const form = $("#s-form");
+  for (const k of ["receita_mensal", "custo_vida_mensal", "fator_reserva"]) {
+    form.elements[k].value = s[k] ?? 0;
+  }
+}
+$("#s-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  await api("/api/settings", {
+    method: "PUT",
+    body: JSON.stringify({
+      receita_mensal: +f.receita_mensal.value || 0,
+      custo_vida_mensal: +f.custo_vida_mensal.value || 0,
+      fator_reserva: +f.fator_reserva.value || 6,
+    }),
+  });
+  alert("Parâmetros salvos.");
+});
+
+const catFields = [
+  { name: "categoria", label: "Categoria", required: true },
+  { name: "subcategoria", label: "Subcategoria" },
+  { name: "grupo", label: "Grupo", type: "select", options: ["OPERACIONAL", "NÃO OPERACIONAL"] },
+  { name: "tipo", label: "Tipo", type: "select", options: ["DESPESA", "RECEITA"] },
+  { name: "meta_mes", label: "Meta mensal (R$)", type: "number" },
+];
+
+async function loadCategoriesTable() {
+  const { items } = await api("/api/categories");
+  const q = $("#s-catq").value.toLowerCase();
+  const filtered = q ? items.filter((c) => c.classificacao.toLowerCase().includes(q)) : items;
+  const table = $("#s-categories");
+  let html = `<thead><tr><th>Classificação</th><th>Grupo</th><th>Tipo</th>
+    <th class="num">Meta mês</th><th></th></tr></thead><tbody>`;
+  html += filtered.map((c) => `<tr><td>${c.classificacao}</td><td>${c.grupo}</td><td>${c.tipo}</td>
+    <td class="num">${c.meta_mes ? money(c.meta_mes) : "–"}</td>
+    <td class="row-actions"><button class="btn small" data-edit="${c.id}">✏️</button>
+    <button class="btn small danger" data-del="${c.id}">🗑</button></td></tr>`).join("");
+  html += "</tbody>";
+  table.innerHTML = html;
+  table.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
+    const c = items.find((i) => i.id == b.dataset.edit);
+    openForm("Editar classificação", catFields, c, async (data) => {
+      await api(`/api/categories/${c.id}`, { method: "PUT", body: JSON.stringify(data) });
+      loadCategoriesTable();
+    });
+  }));
+  table.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
+    if (confirm("Excluir esta classificação?")) {
+      await api(`/api/categories/${b.dataset.del}`, { method: "DELETE" });
+      loadCategoriesTable();
+    }
+  }));
+}
+$("#s-newcat").addEventListener("click", () =>
+  openForm("Nova classificação", catFields,
+    { grupo: "OPERACIONAL", tipo: "DESPESA", meta_mes: 0 },
+    async (data) => {
+      await api("/api/categories", { method: "POST", body: JSON.stringify(data) });
+      loadCategoriesTable();
+    }));
+$("#s-catq").addEventListener("input", () => {
+  clearTimeout(qTimer);
+  qTimer = setTimeout(loadCategoriesTable, 300);
+});
+
+$("#imp-btn").addEventListener("click", async () => {
+  const input = $("#imp-file");
+  const result = $("#imp-result");
+  if (!input.files.length) {
+    result.textContent = "Escolha um arquivo .xlsx ou .xlsm primeiro.";
+    return;
+  }
+  const replace = $("#imp-replace").checked;
+  if (replace && !confirm("Isso vai apagar TODOS os seus lançamentos atuais antes de importar. Continuar?")) return;
+  const btn = $("#imp-btn");
+  btn.disabled = true;
+  result.textContent = "Importando… isso pode levar alguns segundos.";
+  const form = new FormData();
+  form.append("file", input.files[0]);
+  form.append("replace", replace ? "true" : "false");
+  try {
+    const res = await fetch("/api/import", { method: "POST", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      result.textContent = "Erro: " + (data.detail || "não foi possível importar.");
+      return;
+    }
+    result.textContent =
+      `✅ Importado: ${data.lancamentos} lançamentos, ${data.categorias_novas} categorias novas, ` +
+      `${data.projetos} projetos, ${data.investimentos} investimentos, ${data.bens} bens, ${data.dividas} dívidas.`;
+    input.value = "";
+    $("#imp-replace").checked = false;
+    await refreshLookups();
+    loadCategoriesTable();
+    loadResource("people");
+    loadResource("institutions");
+  } catch (e) {
+    result.textContent = "Erro ao enviar o arquivo.";
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+loaders.configuracao = () => {
+  loadSettings();
+  loadCategoriesTable();
+  loadResource("people");
+  loadResource("institutions");
+};
+
+/* dark mode: redesenha gráficos com as cores do novo tema */
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if ($("#tab-dashboard").classList.contains("active")) loadDashboard();
+});
+
+/* ---------- Autenticação ---------- */
+let authMode = "login";
+
+function showAuth() {
+  document.body.classList.remove("authed");
+  $("#au-pass").value = "";
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  $$(".auth-tabs button").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+  const registrando = mode === "register";
+  $("#au-nome-label").hidden = !registrando;
+  $("#au-nome").required = registrando;
+  $("#au-submit").textContent = registrando ? "Criar conta" : "Entrar";
+  $("#au-pass").autocomplete = registrando ? "new-password" : "current-password";
+  $("#au-hint").textContent = registrando
+    ? "É grátis. Sua conta começa com um painel limpo, pronto para usar."
+    : "Ainda não tem conta? Clique em “Criar conta”.";
+  $("#au-error").hidden = true;
+}
+
+$$(".auth-tabs button").forEach((b) =>
+  b.addEventListener("click", () => setAuthMode(b.dataset.mode)));
+
+$("#auth-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("#au-user").value.trim();
+  const senha = $("#au-pass").value;
+  let endpoint, payload;
+  if (authMode === "login") {
+    endpoint = "/api/auth/login";
+    payload = { email, senha };
+  } else {
+    endpoint = "/api/auth/register";
+    payload = { nome: $("#au-nome").value.trim(), email, senha };
+  }
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = $("#au-error");
+    err.textContent = data.detail || "Não foi possível continuar.";
+    err.hidden = false;
+    return;
+  }
+  await enterApp(data.nome || data.email);
+});
+
+$("#logout-btn").addEventListener("click", async () => {
+  await fetch("/api/auth/logout", { method: "POST" });
+  location.reload();
+});
+
+async function enterApp(usuario) {
+  $("#user-name").textContent = "👤 " + usuario;
+  document.body.classList.add("authed");
+  $$("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === "dashboard"));
+  $$(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-dashboard"));
+  ["#f-year", "#l-year", "#l-month", "#pb-year", "#pb-month"].forEach((s) => {
+    const el = $(s);
+    if (el) el.innerHTML = "";
+  });
+  await loadDashboard();
+}
+
+async function boot() {
+  setAuthMode("login");
+  try {
+    const res = await fetch("/api/auth/me");
+    if (res.ok) {
+      const { nome, usuario } = await res.json();
+      await enterApp(nome || usuario);
+      return;
+    }
+  } catch {}
+  showAuth();
+}
+boot();
