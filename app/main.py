@@ -1,4 +1,5 @@
 """API do sistema de gerenciamento de contas pessoais (multiusuário)."""
+import calendar
 import re
 from pathlib import Path
 from typing import Optional
@@ -126,6 +127,8 @@ class TransactionIn(BaseModel):
     pessoa: Optional[str] = None
     status: str = "Previsto"
     obs: Optional[str] = None
+    parcelas: int = 1          # nº de parcelas (1 = lançamento único)
+    valor_total: bool = False  # True: valor informado é o total a dividir entre as parcelas
 
 
 class CategoryIn(BaseModel):
@@ -213,6 +216,15 @@ def rows(cur):
     return [dict(r) for r in cur.fetchall()]
 
 
+def add_months(iso: str, k: int) -> str:
+    """Soma k meses a uma data 'YYYY-MM-DD', ajustando o dia ao fim do mês quando necessário."""
+    y, m, d = (int(x) for x in iso.split("-"))
+    total = (m - 1) + k
+    y2, m2 = y + total // 12, total % 12 + 1
+    d2 = min(d, calendar.monthrange(y2, m2)[1])
+    return f"{y2:04d}-{m2:02d}-{d2:02d}"
+
+
 def category_for(conn, user_id, classificacao: str):
     cat = conn.execute(
         "SELECT * FROM categories WHERE user_id=? AND classificacao=?",
@@ -282,20 +294,37 @@ def list_transactions(
 def create_transaction(t: TransactionIn, user: int = Depends(current_user)):
     conn = get_conn()
     cat = category_for(conn, user, t.classificacao)
-    cur = conn.execute(
-        """INSERT INTO transactions
-           (user_id, dt_compra, dt_venc, classificacao, valor, instituicao, pessoa,
-            status, obs, grupo, tipo, categoria, subcategoria)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (user, t.dt_compra, t.dt_venc, t.classificacao, t.valor, t.instituicao, t.pessoa,
-         t.status, t.obs, cat["grupo"], cat["tipo"], cat["categoria"], cat["subcategoria"]),
-    )
+    n = max(1, min(t.parcelas or 1, 360))
+
+    # valor de cada parcela (se for total, divide e o último absorve o arredondamento)
+    if t.valor_total and n > 1:
+        base = round(t.valor / n, 2)
+        valores = [base] * (n - 1) + [round(t.valor - base * (n - 1), 2)]
+    else:
+        valores = [t.valor] * n
+
+    first_id = None
+    for k in range(n):
+        venc = add_months(t.dt_venc, k) if n > 1 else t.dt_venc
+        obs = t.obs
+        if n > 1:
+            marca = f"({k + 1}/{n})"
+            obs = f"{t.obs} {marca}" if t.obs else marca
+        cur = conn.execute(
+            """INSERT INTO transactions
+               (user_id, dt_compra, dt_venc, classificacao, valor, instituicao, pessoa,
+                status, obs, grupo, tipo, categoria, subcategoria)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user, t.dt_compra, venc, t.classificacao, valores[k], t.instituicao, t.pessoa,
+             t.status, obs, cat["grupo"], cat["tipo"], cat["categoria"], cat["subcategoria"]),
+        )
+        if first_id is None:
+            first_id = cur.lastrowid
     if t.pessoa:
         conn.execute("INSERT OR IGNORE INTO people (user_id, nome) VALUES (?, ?)", (user, t.pessoa))
     conn.commit()
-    new_id = cur.lastrowid
     conn.close()
-    return {"id": new_id}
+    return {"id": first_id, "parcelas": n}
 
 
 @app.put("/api/transactions/{tx_id}")

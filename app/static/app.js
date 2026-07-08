@@ -289,19 +289,29 @@ async function refreshLookups() {
   cachedPeople = people.items;
 }
 
-function txFields() {
-  return [
+function txFields(isNew) {
+  const fields = [
     { name: "classificacao", label: "Classificação", type: "select", required: true, full: true,
       options: cachedCategories.map((c) => c.classificacao) },
     { name: "valor", label: "Valor (R$)", type: "number", required: true },
+  ];
+  if (isNew) {
+    fields.push(
+      { name: "parcelas", label: "Nº de parcelas", type: "number", step: "1" },
+      { name: "valor_tipo", label: "O valor informado é", type: "select",
+        options: [["parcela", "De cada parcela"], ["total", "Total (dividir entre as parcelas)"]] },
+    );
+  }
+  fields.push(
     { name: "status", label: "Status", type: "select", options: ["Previsto", "Realizado"] },
     { name: "dt_compra", label: "Data compra", type: "date" },
-    { name: "dt_venc", label: "Data vencimento", type: "date", required: true },
+    { name: "dt_venc", label: isNew ? "Vencimento (1ª parcela)" : "Data vencimento", type: "date", required: true },
     { name: "instituicao", label: "Instituição", type: "select",
       options: ["", ...new Set(cachedInstitutions.map((i) => i.nome))] },
     { name: "pessoa", label: "Pessoa", list: "dl-people" },
     { name: "obs", label: "Observação", type: "textarea", full: true },
-  ];
+  );
+  return fields;
 }
 
 function ensurePeopleDatalist() {
@@ -348,7 +358,7 @@ async function loadLancamentos() {
       </td>`;
     tr.querySelector(".rowchk").addEventListener("change", updateBulkBar);
     tr.querySelector("[data-edit]").addEventListener("click", () =>
-      openForm("Editar lançamento", txFields(), tx, async (data) => {
+      openForm("Editar lançamento", txFields(false), tx, async (data) => {
         await api(`/api/transactions/${tx.id}`, { method: "PUT", body: JSON.stringify(data) });
         loadLancamentos();
       }));
@@ -467,11 +477,15 @@ $("#bulk-form").addEventListener("submit", async (e) => {
 });
 
 $("#l-new").addEventListener("click", () =>
-  openForm("Novo lançamento", txFields(),
-    { status: "Previsto", dt_venc: new Date().toISOString().slice(0, 10) },
+  openForm("Novo lançamento", txFields(true),
+    { status: "Previsto", dt_venc: new Date().toISOString().slice(0, 10), parcelas: 1, valor_tipo: "parcela" },
     async (data) => {
-      await api("/api/transactions", { method: "POST", body: JSON.stringify(data) });
+      data.parcelas = parseInt(data.parcelas, 10) || 1;
+      data.valor_total = data.valor_tipo === "total";
+      delete data.valor_tipo;
+      const r = await api("/api/transactions", { method: "POST", body: JSON.stringify(data) });
       loadLancamentos();
+      if (r.parcelas > 1) alert(`${r.parcelas} parcelas lançadas, uma por mês.`);
     }));
 ["#l-year", "#l-month", "#l-status", "#l-tipo"].forEach((s) =>
   $(s).addEventListener("change", loadLancamentos));
