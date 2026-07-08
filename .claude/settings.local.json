@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(dataviz)",
+      "Skill(dataviz:*)",
+      "Bash(curl -sL -o app/static/vendor/chart.umd.js https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js)",
+      "Bash(python scripts/extract_seed.py)"
+    ]
+  }
+}
