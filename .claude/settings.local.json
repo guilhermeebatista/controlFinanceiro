@@ -4,7 +4,10 @@
       "Skill(dataviz)",
       "Skill(dataviz:*)",
       "Bash(curl -sL -o app/static/vendor/chart.umd.js https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js)",
-      "Bash(python scripts/extract_seed.py)"
+      "Bash(python scripts/extract_seed.py)",
+      "Bash(docker cp *)",
+      "Bash(docker exec *)",
+      "Bash(export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*')"
     ]
   }
 }
