@@ -1,17 +1,21 @@
 """Banco SQLite multiusuário: schema, migração e seed da conta 'planilha'."""
 import json
 import os
+import re
 import sqlite3
 from pathlib import Path
 
 import auth
 
-DB_PATH = os.environ.get("DB_PATH", str(Path(__file__).parent / "data" / "financas.db"))
+DB_PATH = os.environ.get("DB_PATH", str(Path(__file__).parent.parent / "data" / "financas.db"))
 SEED_PATH = Path(__file__).parent / "seed.json"
 DEFAULT_CATEGORIES_PATH = Path(__file__).parent / "default_categories.json"
 
 PLANILHA_USER = "planilha"
 PLANILHA_PASS = "planilha"
+
+# Promovido a admin na primeira inicialização, se ainda não houver nenhum admin.
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "guilherme.bsb2014mix@gmail.com")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -21,6 +25,8 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE,
     senha_hash TEXT NOT NULL,
     salt TEXT NOT NULL,
+    is_admin INTEGER NOT NULL DEFAULT 0,
+    ultimo_login TEXT,
     criado_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -130,6 +136,14 @@ _SIMPLE_TABLES = [
     "institutions", "ofx_imports", "card_payments",
 ]
 
+# Tudo que pertence a um usuário. Derivado do SCHEMA para não esquecer nenhuma
+# tabela nova ao excluir uma conta.
+_USER_TABLES = [
+    m.group(1) for m in re.finditer(
+        r"CREATE TABLE IF NOT EXISTS (\w+)\s*\((?:[^;]*?)\buser_id\b", SCHEMA
+    )
+]
+
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
@@ -187,8 +201,15 @@ def init_db():
     legacy = _table_exists(conn, "transactions") and not _has_column(conn, "transactions", "user_id")
     conn.executescript(SCHEMA)
 
-    # colunas adicionadas depois da 1ª versão de auth (nome/e-mail no cadastro)
-    _ensure_columns(conn, "users", {"nome": "nome TEXT", "email": "email TEXT"})
+    # colunas adicionadas depois da 1ª versão de auth (nome/e-mail no cadastro,
+    # depois painel admin e registro de último acesso)
+    _ensure_columns(conn, "users", {
+        "nome": "nome TEXT",
+        "email": "email TEXT",
+        "is_admin": "is_admin INTEGER NOT NULL DEFAULT 0",
+        "ultimo_login": "ultimo_login TEXT",
+    })
+    _ensure_first_admin(conn)
 
     planilha_id = _ensure_planilha_row(conn)
     if legacy:
@@ -202,6 +223,27 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+
+def _ensure_first_admin(conn):
+    """Promove ADMIN_EMAIL só enquanto não existir nenhum admin.
+
+    A condição importa: sem ela, um admin rebaixado pelo painel voltaria a ser
+    admin no próximo restart.
+    """
+    if conn.execute("SELECT 1 FROM users WHERE is_admin=1").fetchone():
+        return
+    conn.execute(
+        "UPDATE users SET is_admin=1 WHERE lower(email)=? OR lower(usuario)=?",
+        (ADMIN_EMAIL.lower(), ADMIN_EMAIL.lower()),
+    )
+
+
+def delete_user_data(conn, uid):
+    """Apaga o usuário e tudo que pertence a ele."""
+    for t in _USER_TABLES:
+        conn.execute(f"DELETE FROM {t} WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM users WHERE id=?", (uid,))
 
 
 def _ensure_planilha_row(conn):

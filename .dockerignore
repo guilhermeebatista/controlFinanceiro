@@ -1,7 +1,7 @@
 *.xlsm
 *.xlsx
 scripts/
-app/data/
+data/
 __pycache__/
 *.pyc
 .claude/

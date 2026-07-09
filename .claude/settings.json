@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"^function table\\\\|^const table\\\\|function drawTable\\\\|innerHTML = \\\\`<thead\" app/static/app.js)"
+    ]
+  }
+}

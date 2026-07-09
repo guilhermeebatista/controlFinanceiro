@@ -30,25 +30,44 @@
   </div>
 </div>
 
-<header class="topbar app-only">
-  <h1>💰 Minhas Contas</h1>
+<div class="app-only app-shell">
+<aside id="sidebar">
+  <div class="side-brand">
+    <span class="side-ico">💰</span>
+    <span class="side-label">Minhas Contas</span>
+  </div>
   <nav id="tabs">
-    <button data-tab="dashboard" class="active">Dashboard</button>
-    <button data-tab="lancamentos">Lançamentos</button>
-    <button data-tab="pessoas">Por Pessoa</button>
-    <button data-tab="fluxo">Fluxo</button>
-    <button data-tab="patrimonio">Patrimônio</button>
-    <button data-tab="projetos">Projetos</button>
-    <button data-tab="registro">Registro</button>
-    <button data-tab="configuracao">Configuração</button>
+    <button data-tab="dashboard" class="active" title="Dashboard">
+      <span class="side-ico">📊</span><span class="side-label">Dashboard</span></button>
+    <button data-tab="lancamentos" title="Lançamentos">
+      <span class="side-ico">🧾</span><span class="side-label">Lançamentos</span></button>
+    <button data-tab="pessoas" title="Por Pessoa">
+      <span class="side-ico">👥</span><span class="side-label">Por Pessoa</span></button>
+    <button data-tab="fluxo" title="Fluxo">
+      <span class="side-ico">📈</span><span class="side-label">Fluxo</span></button>
+    <button data-tab="patrimonio" title="Patrimônio">
+      <span class="side-ico">🏦</span><span class="side-label">Patrimônio</span></button>
+    <button data-tab="projetos" title="Projetos">
+      <span class="side-ico">🎯</span><span class="side-label">Projetos</span></button>
+    <button data-tab="registro" title="Registro">
+      <span class="side-ico">📥</span><span class="side-label">Registro</span></button>
+    <button data-tab="configuracao" title="Configuração">
+      <span class="side-ico">⚙️</span><span class="side-label">Configuração</span></button>
+    <button data-tab="admin" id="tab-admin-btn" title="Admin" hidden>
+      <span class="side-ico">🛡️</span><span class="side-label">Admin</span></button>
   </nav>
+</aside>
+
+<div class="content">
+<header class="topbar">
+  <span class="topbar-brand">Minhas Contas</span>
   <div class="userbox">
     <span id="user-name"></span>
     <button class="btn small" id="logout-btn">Sair</button>
   </div>
 </header>
 
-<main class="app-only">
+<main>
   <!-- DASHBOARD -->
   <section id="tab-dashboard" class="tab active">
     <div class="filters">
@@ -94,6 +113,7 @@
       <label>Tipo <select id="l-tipo">
         <option value="">Todos</option><option>RECEITA</option><option>DESPESA</option>
       </select></label>
+      <button class="btn" id="l-clearfilters" hidden>✖ Limpar filtros de coluna</button>
       <button class="btn primary" id="l-new">+ Novo lançamento</button>
     </div>
     <div class="card">
@@ -103,16 +123,14 @@
         <button class="btn danger" id="l-bulkdel">🗑 Excluir selecionados</button>
         <button class="btn" id="l-clearsel">Limpar seleção</button>
       </div>
-      <div class="table-scroll">
-        <table id="l-table">
-          <thead><tr>
-            <th class="chk"><input type="checkbox" id="l-selall" title="Marcar todos"></th>
-            <th>Venc.</th><th>Classificação</th><th>Obs</th><th>Pessoa</th>
-            <th>Instituição</th><th>Status</th><th class="num">Valor</th><th></th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <table id="l-table" class="tabela-cheia">
+        <thead><tr>
+          <th class="chk"><input type="checkbox" id="l-selall" title="Marcar todos"></th>
+          <th>Venc.</th><th>Classificação</th><th>Obs</th><th>Pessoa</th>
+          <th>Instituição</th><th>Status</th><th class="num">Valor</th><th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
       <p class="muted" id="l-count"></p>
     </div>
   </section>
@@ -240,6 +258,25 @@
         </form>
       </div>
       <div class="card">
+        <h3>Minha conta</h3>
+        <form id="me-form" class="form-grid">
+          <label>Nome<input name="nome" autocomplete="name" required></label>
+          <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
+          <button class="btn primary">Salvar perfil</button>
+        </form>
+        <p class="muted" id="me-msg"></p>
+      </div>
+      <div class="card">
+        <h3>Alterar senha</h3>
+        <form id="pw-form" class="form-grid">
+          <label>Senha atual<input name="senha_atual" type="password" autocomplete="current-password" required></label>
+          <label>Nova senha<input name="senha_nova" type="password" autocomplete="new-password" minlength="4" required></label>
+          <label>Confirmar nova senha<input name="senha_conf" type="password" autocomplete="new-password" minlength="4" required></label>
+          <button class="btn primary">Alterar senha</button>
+        </form>
+        <p class="muted" id="pw-msg">Ao trocar a senha, as sessões abertas em outros dispositivos são encerradas.</p>
+      </div>
+      <div class="card">
         <h3>Pessoas <button class="btn small" data-add="people">+ Adicionar</button></h3>
         <div class="table-scroll"><table id="s-people"></table></div>
       </div>
@@ -256,7 +293,19 @@
       </div>
     </div>
   </section>
+
+  <!-- ADMIN -->
+  <section id="tab-admin" class="tab">
+    <div class="card wide">
+      <h3>Contas do sistema</h3>
+      <p class="muted">Redefina senhas, conceda acesso de administrador ou remova contas.
+        Excluir uma conta apaga todos os lançamentos, categorias, projetos e patrimônio dela.</p>
+      <div class="table-scroll"><table id="a-users"></table></div>
+    </div>
+  </section>
 </main>
+</div><!-- /.content -->
+</div><!-- /.app-shell -->
 
 <dialog id="bulk-modal">
   <form id="bulk-form" method="dialog">

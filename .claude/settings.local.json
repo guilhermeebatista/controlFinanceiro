@@ -7,7 +7,20 @@
       "Bash(python scripts/extract_seed.py)",
       "Bash(docker cp *)",
       "Bash(docker exec *)",
-      "Bash(export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*')"
+      "Bash(export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*')",
+      "Bash(git check-ignore *)",
+      "Bash(python -c ' *)",
+      "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 8013 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Write-Output \"servidor de teste parado \\(PID $p\\)\" } else { Write-Output \"porta 8013 livre\" })",
+      "Bash(node --check app/static/app.js)",
+      "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 8013 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Write-Output \"servidor de teste encerrado \\(PID $p\\)\" } else { Write-Output \"porta 8013 ja livre\" })",
+      "Bash(curl -s -o /dev/null -w \"http %{http_code}\\\\n\" http://127.0.0.1:8000/)",
+      "Bash(curl -s http://127.0.0.1:8000/static/app.js)",
+      "Bash(sed 's/^0$/0  -> NAO \\(codigo ANTIGO\\)/;s/^[1-9].*/OK -> sim \\(codigo novo\\)/')",
+      "Bash(curl -s http://127.0.0.1:8000/)",
+      "Bash(PYTHONUTF8=1 python -c ' *)",
+      "Bash(curl -sI http://127.0.0.1:8000/)",
+      "Bash(curl -sI http://127.0.0.1:8000/static/app.js)",
+      "PowerShell(foreach \\($port in 8013,8014\\) { $p = \\(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Write-Output \"porta $port liberada \\(PID $p\\)\" } })"
     ]
   }
 }
