@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import Cookie, Depends, FastAPI, File, Form, HTTPException, Query, Response, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import auth
 import importer
-from db import create_user, get_conn, init_db
+from db import create_user, delete_user_data, get_conn, init_db
 
 app = FastAPI(title="Minhas Contas")
 init_db()
@@ -19,6 +19,21 @@ init_db()
 STATIC = Path(__file__).parent / "static"
 SIGN = "CASE WHEN tipo = 'DESPESA' THEN -valor ELSE valor END"
 COOKIE = "session"
+
+
+@app.middleware("http")
+async def revalidar_frontend(request, call_next):
+    """Obriga o navegador a revalidar a página e os assets a cada carregamento.
+
+    Sem isso o browser guarda index.html/app.js por heurística própria e continua
+    exibindo a versão antiga da interface depois de um deploy. O StaticFiles já
+    manda ETag, então a revalidação custa um 304.
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 # ---------- Auth ----------
@@ -31,6 +46,24 @@ class RegisterIn(BaseModel):
 class LoginIn(BaseModel):
     email: str
     senha: str
+
+
+class ProfileIn(BaseModel):
+    nome: str
+    email: str
+
+
+class PasswordIn(BaseModel):
+    senha_atual: str
+    senha_nova: str
+
+
+class AdminPasswordIn(BaseModel):
+    senha_nova: str
+
+
+class AdminFlagIn(BaseModel):
+    is_admin: bool
 
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -59,6 +92,32 @@ def current_user(session: Optional[str] = Cookie(default=None)) -> int:
     return row["user_id"]
 
 
+def current_admin(user: int = Depends(current_user)) -> int:
+    conn = get_conn()
+    row = conn.execute("SELECT is_admin FROM users WHERE id=?", (user,)).fetchone()
+    conn.close()
+    if not row or not row["is_admin"]:
+        raise HTTPException(403, "Acesso restrito a administradores")
+    return user
+
+
+def _validar_senha(senha: str):
+    if len(senha) < 4:
+        raise HTTPException(400, "A senha precisa ter ao menos 4 caracteres")
+
+
+def _contar_admins(conn) -> int:
+    return conn.execute("SELECT COUNT(*) AS n FROM users WHERE is_admin=1").fetchone()["n"]
+
+
+def _buscar_usuario(conn, uid: int):
+    u = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    if not u:
+        conn.close()
+        raise HTTPException(404, "Usuário não encontrado")
+    return u
+
+
 @app.post("/api/auth/register")
 def register(body: RegisterIn, response: Response):
     nome = body.nome.strip()
@@ -78,7 +137,7 @@ def register(body: RegisterIn, response: Response):
     conn.commit()
     conn.close()
     _set_cookie(response, token)
-    return {"nome": nome, "email": email}
+    return {"nome": nome, "email": email, "is_admin": False}
 
 
 @app.post("/api/auth/login")
@@ -92,10 +151,12 @@ def login(body: LoginIn, response: Response):
         conn.close()
         raise HTTPException(401, "E-mail ou senha inválidos")
     token = _new_session(conn, u["id"])
+    conn.execute("UPDATE users SET ultimo_login=datetime('now') WHERE id=?", (u["id"],))
     conn.commit()
     conn.close()
     _set_cookie(response, token)
-    return {"nome": u["nome"] or u["usuario"], "email": u["email"]}
+    return {"nome": u["nome"] or u["usuario"], "email": u["email"],
+            "is_admin": bool(u["is_admin"])}
 
 
 @app.post("/api/auth/logout")
@@ -112,9 +173,123 @@ def logout(response: Response, session: Optional[str] = Cookie(default=None)):
 @app.get("/api/auth/me")
 def me(user: int = Depends(current_user)):
     conn = get_conn()
-    u = conn.execute("SELECT usuario, nome, email FROM users WHERE id=?", (user,)).fetchone()
+    u = conn.execute(
+        "SELECT usuario, nome, email, is_admin FROM users WHERE id=?", (user,)
+    ).fetchone()
     conn.close()
-    return {"usuario": u["usuario"], "nome": u["nome"] or u["usuario"], "email": u["email"]}
+    return {
+        "usuario": u["usuario"],
+        "nome": u["nome"] or u["usuario"],
+        "email": u["email"],
+        "is_admin": bool(u["is_admin"]),
+    }
+
+
+@app.put("/api/auth/profile")
+def update_profile(body: ProfileIn, user: int = Depends(current_user)):
+    nome = body.nome.strip()
+    email = body.email.strip().lower()
+    if len(nome) < 2:
+        raise HTTPException(400, "Informe seu nome")
+    if not EMAIL_RE.match(email):
+        raise HTTPException(400, "E-mail inválido")
+    conn = get_conn()
+    existe = conn.execute(
+        "SELECT 1 FROM users WHERE (lower(email)=? OR lower(usuario)=?) AND id<>?",
+        (email, email, user),
+    ).fetchone()
+    if existe:
+        conn.close()
+        raise HTTPException(400, "Já existe uma conta com esse e-mail")
+    u = _buscar_usuario(conn, user)
+    # Contas criadas pelo cadastro têm usuario == e-mail; o login casa nas duas colunas,
+    # então o usuario precisa acompanhar, senão o e-mail antigo continuaria entrando.
+    # Contas com handle próprio (ex.: 'planilha') mantêm o handle.
+    novo_usuario = email if EMAIL_RE.match(u["usuario"] or "") else u["usuario"]
+    conn.execute("UPDATE users SET nome=?, email=?, usuario=? WHERE id=?",
+                 (nome, email, novo_usuario, user))
+    conn.commit()
+    conn.close()
+    return {"nome": nome, "email": email, "usuario": novo_usuario}
+
+
+@app.put("/api/auth/password")
+def update_password(body: PasswordIn, user: int = Depends(current_user),
+                    session: Optional[str] = Cookie(default=None)):
+    _validar_senha(body.senha_nova)
+    conn = get_conn()
+    u = _buscar_usuario(conn, user)
+    if not auth.verify_password(body.senha_atual, u["salt"], u["senha_hash"]):
+        conn.close()
+        raise HTTPException(400, "Senha atual incorreta")
+    salt, h = auth.hash_password(body.senha_nova)
+    conn.execute("UPDATE users SET senha_hash=?, salt=? WHERE id=?", (h, salt, user))
+    # derruba as outras sessões: quem tiver a senha antiga em outro dispositivo sai
+    conn.execute("DELETE FROM sessions WHERE user_id=? AND token<>?", (user, session))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+# ---------- Admin ----------
+@app.get("/api/admin/users")
+def admin_list_users(admin: int = Depends(current_admin)):
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT u.id, u.usuario, u.nome, u.email, u.is_admin, u.criado_em, u.ultimo_login,
+               (SELECT COUNT(*) FROM transactions t WHERE t.user_id = u.id) AS n_lancamentos
+        FROM users u ORDER BY u.id
+    """).fetchall()
+    conn.close()
+    return {"items": [
+        {"id": r["id"], "usuario": r["usuario"], "nome": r["nome"] or r["usuario"],
+         "email": r["email"], "is_admin": bool(r["is_admin"]), "criado_em": r["criado_em"],
+         "ultimo_login": r["ultimo_login"], "n_lancamentos": r["n_lancamentos"],
+         "eu": r["id"] == admin}
+        for r in rows
+    ]}
+
+
+@app.post("/api/admin/users/{uid}/password")
+def admin_reset_password(uid: int, body: AdminPasswordIn, admin: int = Depends(current_admin)):
+    _validar_senha(body.senha_nova)
+    conn = get_conn()
+    _buscar_usuario(conn, uid)
+    salt, h = auth.hash_password(body.senha_nova)
+    conn.execute("UPDATE users SET senha_hash=?, salt=? WHERE id=?", (h, salt, uid))
+    # a conta tem senha nova: nenhuma sessão antiga dela continua valendo
+    conn.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/admin/users/{uid}/admin")
+def admin_set_flag(uid: int, body: AdminFlagIn, admin: int = Depends(current_admin)):
+    conn = get_conn()
+    u = _buscar_usuario(conn, uid)
+    if not body.is_admin and u["is_admin"] and _contar_admins(conn) <= 1:
+        conn.close()
+        raise HTTPException(400, "Não é possível rebaixar o último administrador")
+    conn.execute("UPDATE users SET is_admin=? WHERE id=?", (1 if body.is_admin else 0, uid))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "is_admin": body.is_admin}
+
+
+@app.delete("/api/admin/users/{uid}")
+def admin_delete_user(uid: int, admin: int = Depends(current_admin)):
+    if uid == admin:
+        raise HTTPException(400, "Você não pode excluir a própria conta")
+    conn = get_conn()
+    u = _buscar_usuario(conn, uid)
+    if u["is_admin"] and _contar_admins(conn) <= 1:
+        conn.close()
+        raise HTTPException(400, "Não é possível excluir o último administrador")
+    delete_user_data(conn, uid)
+    conn.commit()
+    conn.close()
+    return {"ok": True}
 
 
 # ---------- Models ----------
@@ -817,9 +992,22 @@ def projects_summary(user: int = Depends(current_user)):
 
 
 # ---------- Static ----------
+_VERSIONADOS = ("/static/style.css", "/static/app.js")
+
+
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html")
+    """Serve o index com ?v=<mtime> no CSS e no JS.
+
+    Sem isso o navegador pode continuar usando um style.css antigo mesmo com o
+    HTML novo — a URL não mudou, então ele nem pergunta ao servidor. Com o mtime
+    na query, cada alteração de arquivo vira uma URL nova.
+    """
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    v = int(max((STATIC / p.removeprefix("/static/")).stat().st_mtime for p in _VERSIONADOS))
+    for p in _VERSIONADOS:
+        html = html.replace(p, f"{p}?v={v}")
+    return HTMLResponse(html)
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")

@@ -5,8 +5,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - contas-data:/data
+      # Bind mount: o banco fica em ./data/financas.db, na raiz do projeto.
+      # Sobrevive a `docker compose down -v` e e acessivel fora do container.
+      - ./data:/data
     restart: unless-stopped
-
-volumes:
-  contas-data:

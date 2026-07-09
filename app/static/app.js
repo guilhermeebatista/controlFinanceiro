@@ -13,6 +13,13 @@ const mesLabel = (ym) => {
 };
 const dateBR = (iso) => (iso ? iso.split("-").reverse().join("/") : "");
 
+/* Escapa texto vindo do usuário antes de ir para innerHTML. */
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* "2026-07-09 14:33:02" (UTC, vindo do SQLite) -> "09/07/2026" */
+const dataHoraBR = (s) => (s ? dateBR(s.split(" ")[0]) : "–");
+
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -51,6 +58,14 @@ function ensureMonths(sel) {
   MESES.forEach((m, i) => sel.append(new Option(m, i + 1)));
 }
 
+/* A barra superior é sticky e o cabeçalho da tabela gruda embaixo dela.
+   Mede em vez de fixar no CSS: a altura muda com o zoom e com a fonte. */
+function ajustarTopbar() {
+  const h = $(".topbar")?.offsetHeight;
+  if (h) document.documentElement.style.setProperty("--topbar-h", `${h}px`);
+}
+window.addEventListener("resize", ajustarTopbar);
+
 /* ---------- Tabs ---------- */
 const loaders = {};
 $$("#tabs button").forEach((btn) => {
@@ -61,6 +76,90 @@ $$("#tabs button").forEach((btn) => {
     loaders[btn.dataset.tab]?.();
   });
 });
+
+/* ---------- Combo com busca ----------
+   Digitar "feira" acha "ALIMENTAÇÃO - Feira"; "ali feira" também. Ignora
+   acentos e maiúsculas, e só aceita valores que existam na lista. */
+const semAcento = (s) =>
+  String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+const LIMITE_SUGESTOES = 60;
+
+function filtrarOpcoes(opcoes, termo) {
+  const partes = semAcento(termo).split(/\s+/).filter(Boolean);
+  const casa = partes.length
+    ? opcoes.filter((o) => { const n = semAcento(o); return partes.every((p) => n.includes(p)); })
+    : opcoes;
+  return casa.slice(0, LIMITE_SUGESTOES);
+}
+
+function criarCombo(nome, opcoes, valorInicial = "") {
+  const wrap = document.createElement("div");
+  wrap.className = "combo";
+  const input = document.createElement("input");
+  Object.assign(input, { type: "text", name: nome, autocomplete: "off", value: valorInicial || "" });
+  input.placeholder = "Digite para buscar…";
+  const lista = document.createElement("ul");
+  lista.className = "combo-list";
+  lista.hidden = true;
+  wrap.append(input, lista);
+
+  let marcado = -1;
+  let visiveis = [];
+  let ultimoValido = opcoes.includes(input.value) ? input.value : "";
+
+  function desenhar() {
+    visiveis = filtrarOpcoes(opcoes, input.value);
+    lista.innerHTML = visiveis
+      .map((o, i) => `<li data-i="${i}"${i === marcado ? ' class="marcado"' : ""}>${esc(o)}</li>`)
+      .join("");
+    lista.hidden = !visiveis.length;
+  }
+
+  function escolher(valor) {
+    input.value = valor;
+    ultimoValido = valor;
+    lista.hidden = true;
+    marcado = -1;
+  }
+
+  input.addEventListener("focus", () => { marcado = -1; desenhar(); });
+  input.addEventListener("input", () => { marcado = -1; desenhar(); });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (lista.hidden) { desenhar(); return; }
+      marcado = (marcado + (e.key === "ArrowDown" ? 1 : -1) + visiveis.length) % visiveis.length;
+      desenhar();
+      lista.querySelector(".marcado")?.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter" && !lista.hidden && visiveis.length) {
+      e.preventDefault();   // Enter escolhe; só depois o Enter envia o formulário
+      escolher(visiveis[marcado >= 0 ? marcado : 0]);
+    } else if (e.key === "Escape") {
+      lista.hidden = true;
+    }
+  });
+
+  // mousedown (e não click) porque o blur do input dispara antes do click
+  lista.addEventListener("mousedown", (e) => {
+    const li = e.target.closest("li");
+    if (!li) return;
+    e.preventDefault();
+    escolher(visiveis[li.dataset.i]);
+  });
+
+  /* Sair do campo com texto solto não pode virar classificação inválida:
+     aceita se for exatamente uma opção, senão volta ao último valor bom. */
+  input.addEventListener("blur", () => {
+    lista.hidden = true;
+    const exato = opcoes.find((o) => semAcento(o) === semAcento(input.value));
+    if (exato) { input.value = exato; ultimoValido = exato; }
+    else input.value = ultimoValido;
+  });
+
+  return { wrap, input };
+}
 
 /* ---------- Modal genérico ---------- */
 const modal = $("#modal");
@@ -80,6 +179,13 @@ function openForm(title, fields, values, onSave) {
     if (f.full) label.className = "full";
     label.append(f.label);
     let input;
+    if (f.type === "combo") {
+      const combo = criarCombo(f.name, f.options, values?.[f.name]);
+      if (f.required) combo.input.required = true;
+      label.append(combo.wrap);
+      box.append(label);
+      continue;
+    }
     if (f.type === "select") {
       input = document.createElement("select");
       for (const opt of f.options) {
@@ -107,7 +213,14 @@ function openForm(title, fields, values, onSave) {
   modalSubmit = () => {
     const data = {};
     for (const f of fields) {
-      let v = box.querySelector(`[name="${f.name}"]`).value;
+      const el = box.querySelector(`[name="${f.name}"]`);
+      let v = el.value;
+      // Enter com a lista vazia enviaria texto solto; o combo só aceita opção da lista.
+      if (f.type === "combo" && v && !f.options.includes(v)) {
+        alert(`Escolha uma ${f.label.toLowerCase()} da lista.`);
+        el.focus();
+        return;
+      }
       if (f.type === "number") v = v === "" ? 0 : parseFloat(v);
       if (v === "") v = null;
       data[f.name] = v;
@@ -291,7 +404,7 @@ async function refreshLookups() {
 
 function txFields(isNew) {
   const fields = [
-    { name: "classificacao", label: "Classificação", type: "select", required: true, full: true,
+    { name: "classificacao", label: "Classificação", type: "combo", required: true, full: true,
       options: cachedCategories.map((c) => c.classificacao) },
     { name: "valor", label: "Valor (R$)", type: "number", required: true },
   ];
@@ -324,33 +437,191 @@ function ensurePeopleDatalist() {
   dl.innerHTML = cachedPeople.map((p) => `<option value="${p.nome}">`).join("");
 }
 
-async function loadLancamentos() {
-  await refreshLookups();
-  ensurePeopleDatalist();
-  const ySel = $("#l-year"), mSel = $("#l-month");
-  ensureMonths(mSel);
-  const qs = new URLSearchParams();
-  if (ySel.value) qs.set("year", ySel.value);
-  if (mSel.value) qs.set("month", mSel.value);
-  if ($("#l-status").value !== "Todos") qs.set("status", $("#l-status").value);
-  if ($("#l-tipo").value) qs.set("tipo", $("#l-tipo").value);
-  if ($("#l-q").value) qs.set("q", $("#l-q").value);
-  const { total, items, years } = await api("/api/transactions?" + qs);
-  fillYears(ySel, years);
-  $("#l-count").textContent = `${items.length} de ${total} lançamentos`;
+/* ---------- Lançamentos: filtros por coluna + ordenação ---------- */
+const VAZIO = "(vazio)";
+
+/* Ordem igual à do <thead>, deslocada de 1 por causa da coluna de seleção. */
+const COLS_TX = [
+  { chave: "dt_venc", titulo: "Venc.", filtro: true },
+  { chave: "classificacao", titulo: "Classificação", filtro: true },
+  { chave: "obs", titulo: "Obs", filtro: true, classe: "obs" },
+  { chave: "pessoa", titulo: "Pessoa", filtro: true },
+  { chave: "instituicao", titulo: "Instituição", filtro: true },
+  { chave: "status", titulo: "Status", filtro: true },
+  { chave: "saldo", titulo: "Valor", num: true },
+];
+
+let txItens = [];                       // tudo que veio do servidor
+let txTotal = 0;
+const txFiltros = {};                   // chave -> Set de valores marcados
+let txOrdem = { chave: "dt_venc", asc: false };
+let cabecalhoPronto = false;
+
+/* Texto usado tanto para exibir quanto para agrupar no filtro. */
+function textoCol(tx, col) {
+  if (col.chave === "dt_venc") return dateBR(tx.dt_venc);
+  if (col.num) return money(tx[col.chave]);
+  const v = tx[col.chave];
+  return v === null || v === undefined || v === "" ? VAZIO : String(v);
+}
+
+function compararTx(a, b) {
+  const { chave, asc } = txOrdem;
+  let x = a[chave], y = b[chave];
+  if (chave === "saldo") { x = +x; y = +y; }
+  else { x = String(x ?? "").toLowerCase(); y = String(y ?? "").toLowerCase(); }
+  if (x < y) return asc ? -1 : 1;
+  if (x > y) return asc ? 1 : -1;
+  return b.id - a.id;
+}
+
+/* Um Set ausente = coluna sem filtro. Set vazio = usuário desmarcou tudo. */
+function txVisiveis() {
+  return txItens
+    .filter((tx) => COLS_TX.every((col) => {
+      const sel = txFiltros[col.chave];
+      return !sel || sel.has(textoCol(tx, col));
+    }))
+    .sort(compararTx);
+}
+
+function decorarCabecalho() {
+  if (cabecalhoPronto) return;
+  const ths = $$("#l-table thead th");
+  COLS_TX.forEach((col, i) => {
+    const th = ths[i + 1];
+    th.textContent = "";
+    const inner = document.createElement("div");
+    inner.className = "th-inner";
+    const titulo = document.createElement("span");
+    titulo.className = "th-sort";
+    titulo.textContent = col.titulo;
+    titulo.addEventListener("click", () => {
+      txOrdem = { chave: col.chave, asc: txOrdem.chave === col.chave ? !txOrdem.asc : true };
+      renderTx();
+    });
+    const seta = document.createElement("span");
+    seta.className = "th-arrow";
+    inner.append(titulo, seta);
+    if (col.filtro) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "th-filter";
+      btn.textContent = "▾";
+      btn.title = `Filtrar ${col.titulo}`;
+      btn.addEventListener("click", (e) => { e.stopPropagation(); abrirFiltro(col, btn); });
+      inner.append(btn);
+    }
+    th.append(inner);
+    col._seta = seta;
+    col._btn = inner.querySelector(".th-filter");   // null nas colunas sem filtro
+  });
+  cabecalhoPronto = true;
+}
+
+let popFiltro = null;
+function fecharFiltro() { popFiltro?.remove(); popFiltro = null; }
+document.addEventListener("click", fecharFiltro);
+
+function abrirFiltro(col, btn) {
+  fecharFiltro();
+  const valores = [...new Set(txItens.map((tx) => textoCol(tx, col)))]
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const sel = new Set(txFiltros[col.chave] ?? valores);
+
+  const pop = document.createElement("div");
+  pop.className = "filtro-pop";
+  pop.addEventListener("click", (e) => e.stopPropagation());
+  pop.innerHTML = `
+    <input type="search" class="filtro-busca" placeholder="Buscar…">
+    <label class="filtro-todos"><input type="checkbox"> (Selecionar todos)</label>
+    <div class="filtro-itens"></div>
+    <div class="filtro-acoes">
+      <button type="button" class="btn small" data-limpar>Limpar filtro</button>
+      <button type="button" class="btn small primary" data-ok>Aplicar</button>
+    </div>`;
+
+  const caixaTodos = pop.querySelector(".filtro-todos input");
+  const itens = pop.querySelector(".filtro-itens");
+  const busca = pop.querySelector(".filtro-busca");
+
+  const sincronizarTodos = () => { caixaTodos.checked = sel.size === valores.length; };
+  const desenhar = () => {
+    const termo = semAcento(busca.value);
+    itens.innerHTML = "";
+    for (const v of valores.filter((x) => semAcento(x).includes(termo))) {
+      const l = document.createElement("label");
+      const c = document.createElement("input");
+      c.type = "checkbox";
+      c.checked = sel.has(v);
+      c.addEventListener("change", () => {
+        c.checked ? sel.add(v) : sel.delete(v);
+        sincronizarTodos();
+      });
+      l.append(c, document.createTextNode(" " + v));
+      itens.append(l);
+    }
+    sincronizarTodos();
+  };
+  desenhar();
+
+  busca.addEventListener("input", desenhar);
+  caixaTodos.addEventListener("change", () => {
+    if (caixaTodos.checked) valores.forEach((v) => sel.add(v));
+    else sel.clear();
+    desenhar();
+  });
+  pop.querySelector("[data-limpar]").addEventListener("click", () => {
+    delete txFiltros[col.chave];
+    fecharFiltro();
+    renderTx();
+  });
+  pop.querySelector("[data-ok]").addEventListener("click", () => {
+    // marcar tudo equivale a não filtrar
+    if (sel.size === valores.length) delete txFiltros[col.chave];
+    else txFiltros[col.chave] = sel;
+    fecharFiltro();
+    renderTx();
+  });
+
+  document.body.append(pop);
+  const r = btn.getBoundingClientRect();
+  const maxEsq = window.scrollX + document.documentElement.clientWidth - pop.offsetWidth - 12;
+  pop.style.top = `${r.bottom + window.scrollY + 6}px`;
+  pop.style.left = `${Math.max(8, Math.min(r.left + window.scrollX, maxEsq))}px`;
+  popFiltro = pop;
+  busca.focus();
+}
+
+function renderTx() {
+  const visiveis = txVisiveis();
+
+  for (const col of COLS_TX) {
+    col._seta.textContent = txOrdem.chave === col.chave ? (txOrdem.asc ? "▲" : "▼") : "";
+    col._btn?.classList.toggle("ativo", !!txFiltros[col.chave]);
+  }
+  const temFiltro = Object.keys(txFiltros).length > 0;
+  $("#l-clearfilters").hidden = !temFiltro;
+
+  const parcial = txItens.length < txTotal;
+  $("#l-count").textContent =
+    `${visiveis.length} de ${txItens.length} lançamentos` +
+    (temFiltro ? " (filtrado)" : "") +
+    (parcial ? ` · ${txTotal} no total, filtros valem sobre os carregados` : "");
+
   const tbody = $("#l-table tbody");
   tbody.innerHTML = "";
-  for (const tx of items) {
+  for (const tx of visiveis) {
     const tr = document.createElement("tr");
     const cls = tx.saldo >= 0 ? "pos" : "neg";
     tr.innerHTML = `
       <td class="chk"><input type="checkbox" class="rowchk" data-id="${tx.id}"></td>
       <td>${dateBR(tx.dt_venc)}</td>
-      <td>${tx.classificacao}</td>
-      <td>${tx.obs || ""}</td>
-      <td>${tx.pessoa || ""}</td>
-      <td>${tx.instituicao || ""}</td>
-      <td>${tx.status}</td>
+      <td>${esc(tx.classificacao)}</td>
+      <td class="obs">${esc(tx.obs || "")}</td>
+      <td>${esc(tx.pessoa || "")}</td>
+      <td>${esc(tx.instituicao || "")}</td>
+      <td>${esc(tx.status)}</td>
       <td class="num ${cls}">${money(tx.saldo)}</td>
       <td class="row-actions">
         <button class="btn small" data-edit>✏️</button>
@@ -373,6 +644,31 @@ async function loadLancamentos() {
   $("#l-selall").checked = false;
   $("#l-selall").indeterminate = false;
   updateBulkBar();
+}
+
+$("#l-clearfilters").addEventListener("click", () => {
+  Object.keys(txFiltros).forEach((k) => delete txFiltros[k]);
+  renderTx();
+});
+
+async function loadLancamentos() {
+  await refreshLookups();
+  ensurePeopleDatalist();
+  const ySel = $("#l-year"), mSel = $("#l-month");
+  ensureMonths(mSel);
+  const qs = new URLSearchParams();
+  if (ySel.value) qs.set("year", ySel.value);
+  if (mSel.value) qs.set("month", mSel.value);
+  if ($("#l-status").value !== "Todos") qs.set("status", $("#l-status").value);
+  if ($("#l-tipo").value) qs.set("tipo", $("#l-tipo").value);
+  if ($("#l-q").value) qs.set("q", $("#l-q").value);
+  qs.set("limit", "2000");   // filtros de coluna são no cliente: traga tudo que der
+  const { total, items, years } = await api("/api/transactions?" + qs);
+  fillYears(ySel, years);
+  txItens = items;
+  txTotal = total;
+  decorarCabecalho();
+  renderTx();
 }
 
 function updateBulkBar() {
@@ -428,15 +724,17 @@ function selectFrom(options) {
 function beRenderValue() {
   const field = $("#be-field").value;
   const wrap = $("#be-valuewrap");
-  let ctrl, hint = "";
+  let ctrl, hint = "", campo = null;   // campo != ctrl quando o controle vem embrulhado (combo)
   if (field === "status") {
     ctrl = selectFrom(["Previsto", "Realizado"]);
   } else if (field === "instituicao") {
     ctrl = selectFrom(["", ...new Set(cachedInstitutions.map((i) => i.nome))]);
     hint = "Deixe em branco para limpar a instituição.";
   } else if (field === "classificacao") {
-    ctrl = selectFrom(cachedCategories.map((c) => c.classificacao));
-    hint = "Grupo, tipo e categoria serão ajustados conforme a classificação escolhida.";
+    const combo = criarCombo("be-classificacao", cachedCategories.map((c) => c.classificacao));
+    ctrl = combo.wrap;
+    campo = combo.input;
+    hint = "Digite parte do nome para buscar. Grupo, tipo e categoria serão ajustados conforme a classificação escolhida.";
   } else if (field === "dt_venc") {
     ctrl = document.createElement("input");
     ctrl.type = "date";
@@ -446,7 +744,7 @@ function beRenderValue() {
     ctrl.setAttribute("list", "dl-people");
     hint = "Deixe em branco para limpar a pessoa.";
   }
-  ctrl.id = "be-value";
+  (campo || ctrl).id = "be-value";
   wrap.innerHTML = "";
   wrap.append(ctrl);
   $("#be-hint").textContent = hint;
@@ -467,6 +765,10 @@ $("#bulk-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const field = $("#be-field").value;
   const value = $("#be-value").value;
+  if (field === "classificacao" && !cachedCategories.some((c) => c.classificacao === value)) {
+    alert("Escolha uma classificação da lista.");
+    return;
+  }
   const r = await api("/api/transactions/bulk-update", {
     method: "POST",
     body: JSON.stringify({ ids: bulkIds, field, value }),
@@ -882,12 +1184,103 @@ $("#imp-btn").addEventListener("click", async () => {
   }
 });
 
+/* ---------- Minha conta ---------- */
+async function loadMeForm() {
+  const me = await api("/api/auth/me");
+  const f = $("#me-form").elements;
+  f.nome.value = me.nome || "";
+  f.email.value = me.email || "";
+}
+
+$("#me-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  const data = await api("/api/auth/profile", {
+    method: "PUT",
+    body: JSON.stringify({ nome: f.nome.value.trim(), email: f.email.value.trim() }),
+  });
+  $("#user-name").textContent = "👤 " + data.nome;
+  $("#me-msg").textContent = "Perfil salvo.";
+});
+
+$("#pw-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  const msg = $("#pw-msg");
+  if (f.senha_nova.value !== f.senha_conf.value) {
+    msg.textContent = "A confirmação não confere com a nova senha.";
+    return;
+  }
+  await api("/api/auth/password", {
+    method: "PUT",
+    body: JSON.stringify({
+      senha_atual: f.senha_atual.value,
+      senha_nova: f.senha_nova.value,
+    }),
+  });
+  e.target.reset();
+  msg.textContent = "Senha alterada. As outras sessões foram encerradas.";
+});
+
 loaders.configuracao = () => {
   loadSettings();
+  loadMeForm();
   loadCategoriesTable();
   loadResource("people");
   loadResource("institutions");
 };
+
+/* ---------- Admin ---------- */
+async function loadAdminUsers() {
+  const { items } = await api("/api/admin/users");
+  const table = $("#a-users");
+  let html = `<thead><tr><th>Conta</th><th>E-mail</th><th class="num">Lançamentos</th>
+    <th>Criada em</th><th>Último acesso</th><th>Admin</th><th></th></tr></thead><tbody>`;
+  html += items.map((u) => `<tr>
+    <td>${esc(u.nome)}${u.eu ? ' <span class="muted">(você)</span>' : ""}</td>
+    <td>${esc(u.email || u.usuario)}</td>
+    <td class="num">${u.n_lancamentos}</td>
+    <td>${dataHoraBR(u.criado_em)}</td>
+    <td>${dataHoraBR(u.ultimo_login)}</td>
+    <td>${u.is_admin ? "✅" : "—"}</td>
+    <td class="row-actions">
+      <button class="btn small" data-pw="${u.id}" title="Redefinir senha">🔑</button>
+      <button class="btn small" data-flag="${u.id}" title="${u.is_admin ? "Rebaixar" : "Tornar admin"}">${u.is_admin ? "⬇️" : "⬆️"}</button>
+      <button class="btn small danger" data-del="${u.id}" title="Excluir conta"${u.eu ? " disabled" : ""}>🗑</button>
+    </td></tr>`).join("");
+  html += "</tbody>";
+  table.innerHTML = html;
+
+  table.querySelectorAll("[data-pw]").forEach((b) => b.addEventListener("click", () => {
+    const u = items.find((i) => i.id == b.dataset.pw);
+    openForm(`Redefinir senha de ${u.nome}`, [
+      { name: "senha_nova", label: "Nova senha", type: "password", required: true },
+    ], {}, async (data) => {
+      await api(`/api/admin/users/${u.id}/password`, {
+        method: "POST", body: JSON.stringify(data),
+      });
+      alert(`Senha de ${u.nome} redefinida. As sessões dela foram encerradas.`);
+    });
+  }));
+
+  table.querySelectorAll("[data-flag]").forEach((b) => b.addEventListener("click", async () => {
+    const u = items.find((i) => i.id == b.dataset.flag);
+    const virar = !u.is_admin;
+    if (!confirm(`${virar ? "Tornar" : "Rebaixar"} ${u.nome} ${virar ? "administrador" : "para usuário comum"}?`)) return;
+    await api(`/api/admin/users/${u.id}/admin`, {
+      method: "POST", body: JSON.stringify({ is_admin: virar }),
+    });
+    loadAdminUsers();
+  }));
+
+  table.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
+    const u = items.find((i) => i.id == b.dataset.del);
+    if (!confirm(`Excluir a conta de ${u.nome}?\n\nIsso apaga ${u.n_lancamentos} lançamento(s) e todos os dados dela. Não dá para desfazer.`)) return;
+    await api(`/api/admin/users/${u.id}`, { method: "DELETE" });
+    loadAdminUsers();
+  }));
+}
+loaders.admin = loadAdminUsers;
 
 /* dark mode: redesenha gráficos com as cores do novo tema */
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
@@ -943,7 +1336,7 @@ $("#auth-form").addEventListener("submit", async (e) => {
     err.hidden = false;
     return;
   }
-  await enterApp(data.nome || data.email);
+  await enterApp(data.nome || data.email, data.is_admin);
 });
 
 $("#logout-btn").addEventListener("click", async () => {
@@ -951,9 +1344,11 @@ $("#logout-btn").addEventListener("click", async () => {
   location.reload();
 });
 
-async function enterApp(usuario) {
+async function enterApp(usuario, isAdmin = false) {
   $("#user-name").textContent = "👤 " + usuario;
+  $("#tab-admin-btn").hidden = !isAdmin;
   document.body.classList.add("authed");
+  ajustarTopbar();   // só agora a barra existe no layout (antes o shell está oculto)
   $$("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === "dashboard"));
   $$(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-dashboard"));
   ["#f-year", "#l-year", "#l-month", "#pb-year", "#pb-month"].forEach((s) => {
@@ -968,8 +1363,8 @@ async function boot() {
   try {
     const res = await fetch("/api/auth/me");
     if (res.ok) {
-      const { nome, usuario } = await res.json();
-      await enterApp(nome || usuario);
+      const { nome, usuario, is_admin } = await res.json();
+      await enterApp(nome || usuario, is_admin);
       return;
     }
   } catch {}

@@ -46,14 +46,21 @@ API documentada automaticamente em `/docs` (Swagger).
 
 ## Reimportar a planilha
 
-Se a planilha mudar, gere um novo seed e recrie o volume:
+Se a planilha mudar, gere um novo seed e recrie o banco:
 
 ```bash
 python scripts/extract_seed.py
-docker compose down -v && docker compose up -d --build
+docker compose down
+rm data/financas.db          # o banco vive na raiz; apagar aqui recria com o seed
+docker compose up -d --build
 ```
+
+> `docker compose down -v` **não** apaga mais o banco: ele é um bind mount, não um
+> volume gerenciado pelo Docker. Para zerar, apague `data/financas.db` na mão.
 
 ## Stack
 
-- **Backend**: Python 3.12, FastAPI, SQLite (arquivo em `/data/financas.db` no volume)
+- **Backend**: Python 3.12, FastAPI, SQLite
+- **Banco**: `data/financas.db` na raiz do projeto. Local e Docker usam o mesmo arquivo
+  (o container monta `./data` em `/data`). Fora do Git — faça backup copiando o arquivo.
 - **Frontend**: HTML/CSS/JS estático + Chart.js (embarcado, funciona offline), tema claro/escuro automático
