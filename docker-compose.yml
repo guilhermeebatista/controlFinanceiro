@@ -1,11 +1,45 @@
 services:
-  minhas-contas:
+  mysql:
+    image: mysql:8.4
+    container_name: contas-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?defina MYSQL_ROOT_PASSWORD no arquivo .env}
+      MYSQL_DATABASE: ${DB_NAME:-minhas_contas}
+      MYSQL_USER: ${DB_USER:-contas}
+      MYSQL_PASSWORD: ${DB_PASS:?defina DB_PASS no arquivo .env}
+    volumes:
+      # Dados do MySQL. Sobrevive a rebuild; `docker compose down -v` apaga.
+      - mysql-data:/var/lib/mysql
+      # Executado só na primeira subida, quando o datadir ainda está vazio.
+      - ./database.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    # O banco não é exposto ao host: só a rede interna do compose alcança.
+    expose:
+      - "3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  app:
     build: .
     container_name: minhas-contas
-    ports:
-      - "8000:8000"
-    volumes:
-      # Bind mount: o banco fica em ./data/financas.db, na raiz do projeto.
-      # Sobrevive a `docker compose down -v` e e acessivel fora do container.
-      - ./data:/data
     restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-minhas_contas}
+      DB_USER: ${DB_USER:-contas}
+      DB_PASS: ${DB_PASS:?defina DB_PASS no arquivo .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@seu-dominio.com}
+      APP_ENV: ${APP_ENV:-production}
+    ports:
+      - "8000:80"
+
+volumes:
+  mysql-data:

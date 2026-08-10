@@ -270,8 +270,8 @@
         <h3>Alterar senha</h3>
         <form id="pw-form" class="form-grid">
           <label>Senha atual<input name="senha_atual" type="password" autocomplete="current-password" required></label>
-          <label>Nova senha<input name="senha_nova" type="password" autocomplete="new-password" minlength="4" required></label>
-          <label>Confirmar nova senha<input name="senha_conf" type="password" autocomplete="new-password" minlength="4" required></label>
+          <label>Nova senha<input name="senha_nova" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></label>
+          <label>Confirmar nova senha<input name="senha_conf" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></label>
           <button class="btn primary">Alterar senha</button>
         </form>
         <p class="muted" id="pw-msg">Ao trocar a senha, as sessões abertas em outros dispositivos são encerradas.</p>

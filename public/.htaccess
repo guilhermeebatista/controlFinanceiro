@@ -1,0 +1,32 @@
+# DocumentRoot da aplicação. Só o que está nesta pasta é alcançável pela web —
+# src/, resources/, bin/ e o database.sql ficam um nível acima, fora do alcance.
+
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Arquivo real (static/app.js, static/style.css, vendor/chart.umd.js) é
+  # servido direto pelo Apache; o resto vai para o front controller.
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  RewriteRule ^ index.php [L]
+</IfModule>
+
+# Nada de .git, .env, .htaccess & cia. servidos como conteúdo.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  # Respostas do PHP já recebem os cabeçalhos de segurança em Http::cabecalhosSeguranca().
+  # Aqui só os arquivos estáticos, que o Apache serve sem passar pela aplicação.
+  <FilesMatch "\.(js|css|woff2?)$">
+    Header set X-Content-Type-Options "nosniff"
+    # Versionados por ?v=<mtime>: a URL muda a cada deploy, então podem ser
+    # cacheados por muito tempo.
+    Header set Cache-Control "public, max-age=31536000"
+  </FilesMatch>
+</IfModule>
