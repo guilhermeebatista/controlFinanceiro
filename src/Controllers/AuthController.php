@@ -8,8 +8,10 @@ declare(strict_types=1);
 namespace MinhasContas\Controllers;
 
 use MinhasContas\Auth;
+use MinhasContas\Config;
 use MinhasContas\Database;
 use MinhasContas\Http;
+use MinhasContas\Mailer;
 use MinhasContas\Security;
 use MinhasContas\Users;
 use PDOException;
@@ -53,8 +55,103 @@ final class AuthController
             throw $e;
         }
 
+        self::enviarCodigoVerificacao($uid, $email);
+        Http::json([
+            'email'    => $email,
+            'mensagem' => 'Conta criada. Enviamos um código de 6 dígitos para seu e-mail — digite-o para ativar a conta.',
+        ]);
+    }
+
+    /**
+     * Gera um código de 6 dígitos, substitui qualquer pendência anterior da
+     * conta e envia por e-mail. Só o SHA-256 do código fica no banco.
+     */
+    private static function enviarCodigoVerificacao(int $uid, string $email): void
+    {
+        $codigo = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        Database::run(
+            'INSERT INTO email_verifications (user_id, codigo_hash, expira_em) VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE codigo_hash = VALUES(codigo_hash), criado_em = CURRENT_TIMESTAMP, expira_em = VALUES(expira_em)',
+            [$uid, hash('sha256', $codigo), gmdate('Y-m-d H:i:s', time() + Config::EMAIL_VERIFICACAO_TTL_SEGUNDOS)]
+        );
+        Mailer::enviar(
+            $email,
+            'Código de ativação — Minhas Contas',
+            "Seu código de ativação é: {$codigo}\n\n"
+            . "Digite-o na tela de ativação para confirmar seu e-mail. O código expira em 15 minutos.\n\n"
+            . 'Se você não criou esta conta, ignore este e-mail.'
+        );
+    }
+
+    /**
+     * Confirma o código enviado no cadastro e, se bater, já cria a sessão —
+     * a pessoa acabou de provar a senha (cadastro) e a posse do e-mail
+     * (código) nos últimos minutos, não há motivo para pedir login de novo.
+     */
+    public static function verificarEmail(): void
+    {
+        $email  = mb_strtolower(Http::texto('email', 190));
+        $codigo = Http::texto('codigo', 10);
+
+        $identificador = "email_verify:{$email}";
+        Security::verificarBloqueioLogin($identificador);
+
+        $u = Database::um(
+            'SELECT * FROM users WHERE LOWER(email) = ? AND email_verificado_em IS NULL',
+            [$email]
+        );
+        $pendencia = $u !== null
+            ? Database::um(
+                'SELECT codigo_hash FROM email_verifications WHERE user_id = ? AND expira_em > UTC_TIMESTAMP()',
+                [(int) $u['id']]
+            )
+            : null;
+
+        $ok = $pendencia !== null && hash_equals((string) $pendencia['codigo_hash'], hash('sha256', $codigo));
+        if (!$ok) {
+            Security::registrarFalhaLogin($identificador);
+            Http::erro(400, 'Código inválido ou expirado.');
+        }
+
+        /** @var array<string, mixed> $u */
+        $uid = (int) $u['id'];
+        Security::limparFalhasLogin($identificador);
+
+        Database::transacao(static function () use ($uid): void {
+            Database::run('UPDATE users SET email_verificado_em = UTC_TIMESTAMP() WHERE id = ?', [$uid]);
+            Database::run('DELETE FROM email_verifications WHERE user_id = ?', [$uid]);
+        });
+
         Auth::criarSessao($uid);
-        Http::json(['nome' => $nome, 'email' => $email, 'is_admin' => false]);
+        Http::json([
+            'nome'     => $u['nome'] !== null && $u['nome'] !== '' ? $u['nome'] : $u['usuario'],
+            'email'    => $u['email'],
+            'is_admin' => (bool) $u['is_admin'],
+        ]);
+    }
+
+    /** Resposta sempre genérica: não revela se a conta existe ou já foi ativada. */
+    public static function reenviarVerificacao(): void
+    {
+        $email = mb_strtolower(Http::texto('email', 190));
+        self::validarEmail($email);
+
+        $u = Database::um(
+            'SELECT id FROM users WHERE LOWER(email) = ? AND email_verificado_em IS NULL',
+            [$email]
+        );
+        if ($u !== null) {
+            $uid = (int) $u['id'];
+            $recente = Database::valor(
+                'SELECT 1 FROM email_verifications WHERE user_id = ? AND criado_em > ?',
+                [$uid, gmdate('Y-m-d H:i:s', time() - Config::TOKEN_REENVIO_COOLDOWN_SEGUNDOS)]
+            );
+            if ($recente === null) {
+                self::enviarCodigoVerificacao($uid, $email);
+            }
+        }
+
+        Http::json(['mensagem' => 'Se esse e-mail existir e a conta ainda não tiver sido ativada, reenviamos o código.']);
     }
 
     public static function login(): void
@@ -82,6 +179,12 @@ final class AuthController
         $uid = (int) $u['id'];
         Security::limparFalhasLogin($ident);
         Auth::reidratarSeNecessario($uid, $senha, (string) $u['senha_hash'], (string) $u['salt']);
+
+        // Contas sem e-mail (ex.: 'planilha') nunca passaram pelo cadastro
+        // com código, então não têm o que confirmar.
+        if ($u['email'] !== null && $u['email_verificado_em'] === null) {
+            Http::erro(403, 'Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada ou peça um novo código.');
+        }
 
         Database::run('UPDATE users SET ultimo_login = UTC_TIMESTAMP() WHERE id = ?', [$uid]);
         Auth::criarSessao($uid);

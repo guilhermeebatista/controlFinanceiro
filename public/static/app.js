@@ -1315,6 +1315,17 @@ let authMode = "login";
 function showAuth() {
   document.body.classList.remove("authed");
   $("#au-pass").value = "";
+  $("#verify-card").hidden = true;
+  $("#auth-card").hidden = false;
+}
+
+function showVerify(email) {
+  $("#verify-email").textContent = email;
+  $("#verify-codigo").value = "";
+  $("#verify-error").hidden = true;
+  $("#auth-card").hidden = true;
+  $("#verify-card").hidden = false;
+  $("#verify-codigo").focus();
 }
 
 function setAuthMode(mode) {
@@ -1358,7 +1369,40 @@ $("#auth-form").addEventListener("submit", async (e) => {
     err.hidden = false;
     return;
   }
+  if (authMode === "register") {
+    showVerify(data.email || email);
+    return;
+  }
   await enterApp(data.nome || data.email, data.is_admin);
+});
+
+$("#verify-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("#verify-email").textContent;
+  const codigo = $("#verify-codigo").value.trim();
+  const res = await fetch("/api/auth/verify-email", {
+    method: "POST",
+    headers: cabecalhos(),
+    body: JSON.stringify({ email, codigo }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = $("#verify-error");
+    err.textContent = data.detail || "Código inválido ou expirado.";
+    err.hidden = false;
+    return;
+  }
+  await enterApp(data.nome || data.email, data.is_admin);
+});
+
+$("#verify-resend").addEventListener("click", async () => {
+  const email = $("#verify-email").textContent;
+  await fetch("/api/auth/resend-verification", {
+    method: "POST",
+    headers: cabecalhos(),
+    body: JSON.stringify({ email }),
+  });
+  alert("Se a conta ainda não tiver sido ativada, reenviamos o código.");
 });
 
 $("#logout-btn").addEventListener("click", async () => {

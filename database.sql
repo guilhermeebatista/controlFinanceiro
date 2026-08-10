@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `senha_hash`   VARCHAR(255)  NOT NULL,
   `salt`         VARCHAR(64)   NOT NULL DEFAULT '',
   `is_admin`     TINYINT(1)    NOT NULL DEFAULT 0,
+  `email_verificado_em` DATETIME DEFAULT NULL,
   `ultimo_login` DATETIME      DEFAULT NULL,
   `criado_em`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -89,6 +90,26 @@ CREATE TABLE IF NOT EXISTS `login_attempts` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_attempt` (`ip`, `identificador`),
   KEY `ix_attempts_atualizado` (`atualizado_em`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ---------------------------------------------------------------------
+--  email_verifications — código pendente de ativação da conta
+-- ---------------------------------------------------------------------
+--  Um código por conta (PK em user_id): reenviar substitui o anterior.
+--  Guarda só o SHA-256 do código de 6 dígitos, nunca o código em si. A
+--  consulta sempre passa por user_id (resolvido pelo e-mail informado) —
+--  nunca por codigo_hash sozinho, senão bastaria acertar QUALQUER código
+--  pendente de QUALQUER conta para logar como o dono dela.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `email_verifications` (
+  `user_id`     INT UNSIGNED NOT NULL,
+  `codigo_hash` CHAR(64)     NOT NULL,
+  `criado_em`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expira_em`   DATETIME     NOT NULL,
+  PRIMARY KEY (`user_id`),
+  CONSTRAINT `fk_email_verifications_user` FOREIGN KEY (`user_id`)
+    REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 

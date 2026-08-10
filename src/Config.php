@@ -30,6 +30,12 @@ final class Config
     /** Custo do bcrypt. Sobe com o hardware; 12 ≈ 250ms num servidor atual. */
     public const BCRYPT_COST = 12;
 
+    /** Validade do código de ativação de conta (segundos). */
+    public const EMAIL_VERIFICACAO_TTL_SEGUNDOS = 15 * 60;
+
+    /** Intervalo mínimo entre reenvios do código de ativação (segundos). */
+    public const TOKEN_REENVIO_COOLDOWN_SEGUNDOS = 60;
+
     /**
      * Conta promovida a administrador na primeira inicialização, contanto que
      * ainda não exista nenhum admin. A condição importa: sem ela um admin
@@ -74,6 +80,36 @@ final class Config
     public static function debug(): bool
     {
         return self::env('APP_ENV', 'production') === 'development';
+    }
+
+    public static function smtpHost(): string
+    {
+        return self::env('SMTP_HOST');
+    }
+
+    public static function smtpPort(): int
+    {
+        return (int) self::env('SMTP_PORT', '587');
+    }
+
+    public static function smtpUser(): string
+    {
+        return self::env('SMTP_USER');
+    }
+
+    public static function smtpPass(): string
+    {
+        return self::env('SMTP_PASS');
+    }
+
+    public static function smtpFromEmail(): string
+    {
+        return self::env('SMTP_FROM_EMAIL');
+    }
+
+    public static function smtpFromNome(): string
+    {
+        return self::env('SMTP_FROM_NOME', 'Minhas Contas');
     }
 
     /** Raiz do projeto (um nível acima de src/). */
