@@ -22,7 +22,11 @@
       "Bash(curl -sI http://127.0.0.1:8000/static/app.js)",
       "PowerShell(foreach \\($port in 8013,8014\\) { $p = \\(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Write-Output \"porta $port liberada \\(PID $p\\)\" } })",
       "Bash(xargs -I{} echo {})",
-      "Bash(docker compose exec minhas-contas python3 -c ' *)"
+      "Bash(docker compose exec minhas-contas python3 -c ' *)",
+      "Bash(mkdir -p docs/superpowers/specs && ls docs/superpowers/specs 2>/dev/null)"
+    ],
+    "additionalDirectories": [
+      "/home/guilhermebatista/projects/bills/docs/superpowers"
     ]
   }
 }
