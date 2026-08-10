@@ -22,7 +22,7 @@ jobs:
           rsync -avz --relative \
             -e "ssh -i ~/.ssh/deploy_key" \
             Dockerfile docker-compose.yml docker-compose.prod.yml database.sql .dockerignore \
-            docker public src resources bin \
+            docker public src resources bin migrations \
             "${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_HOST }}:/home/ubuntu/minhas-contas/"
 
       - name: Rebuild e restart dos containers
