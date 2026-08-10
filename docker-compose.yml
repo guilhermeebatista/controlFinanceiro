@@ -38,6 +38,7 @@ services:
       DB_PASS: ${DB_PASS:?defina DB_PASS no arquivo .env}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-guilherme.bsb2014mix@gmail.com}
       APP_ENV: ${APP_ENV:-production}
+      SEED_DEMO_ACCOUNT: ${SEED_DEMO_ACCOUNT:-true}
     ports:
       - "8000:80"
 

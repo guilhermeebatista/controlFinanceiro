@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/autoload.php';
 
+use MinhasContas\Config;
 use MinhasContas\Controllers\ImportController;
 use MinhasContas\Database;
 use MinhasContas\Users;
@@ -26,8 +27,10 @@ const PLANILHA_USUARIO = 'planilha';
 
 try {
     aplicarSchema();
-    $uid = garantirContaPlanilha();
-    semearPlanilha($uid);
+    if (Config::seedContaDemo()) {
+        $uid = garantirContaPlanilha();
+        semearPlanilha($uid);
+    }
     Users::garantirPrimeiroAdmin();
     echo "[migrate] banco pronto.\n";
 } catch (Throwable $e) {

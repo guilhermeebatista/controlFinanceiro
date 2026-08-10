@@ -40,6 +40,16 @@ final class Config
         return self::env('ADMIN_EMAIL', 'guilherme.bsb2014mix@gmail.com');
     }
 
+    /**
+     * Cria e alimenta a conta de demonstração 'planilha' a cada boot.
+     * Desligar em produção depois da configuração inicial: caso contrário,
+     * excluir a conta não pega — ela volta no próximo restart do container.
+     */
+    public static function seedContaDemo(): bool
+    {
+        return self::env('SEED_DEMO_ACCOUNT', 'true') === 'true';
+    }
+
     public static function dsn(): string
     {
         return sprintf(
