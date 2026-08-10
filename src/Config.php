@@ -36,6 +36,9 @@ final class Config
     /** Intervalo mínimo entre reenvios do código de ativação (segundos). */
     public const TOKEN_REENVIO_COOLDOWN_SEGUNDOS = 60;
 
+    /** Validade da pendência de MFA entre a senha e o código (segundos). */
+    public const MFA_PENDENTE_TTL_SEGUNDOS = 10 * 60;
+
     /**
      * Conta promovida a administrador na primeira inicialização, contanto que
      * ainda não exista nenhum admin. A condição importa: sem ela um admin
@@ -110,6 +113,12 @@ final class Config
     public static function smtpFromNome(): string
     {
         return self::env('SMTP_FROM_NOME', 'Minhas Contas');
+    }
+
+    /** Chave (32 bytes, base64) usada para cifrar o segredo TOTP em repouso. */
+    public static function mfaEncryptionKey(): string
+    {
+        return self::env('MFA_ENCRYPTION_KEY');
     }
 
     /** Raiz do projeto (um nível acima de src/). */

@@ -18,6 +18,7 @@ use MinhasContas\Controllers\AuthController;
 use MinhasContas\Controllers\CategoryController;
 use MinhasContas\Controllers\DashboardController;
 use MinhasContas\Controllers\ImportController;
+use MinhasContas\Controllers\MfaController;
 use MinhasContas\Controllers\SettingsController;
 use MinhasContas\Controllers\TransactionController;
 use MinhasContas\Http;
@@ -72,6 +73,10 @@ function registrarRotas(): void
     Router::post('/api/auth/verify-email', AuthController::verificarEmail(...));
     Router::post('/api/auth/resend-verification', AuthController::reenviarVerificacao(...));
     Router::post('/api/auth/login', AuthController::login(...));
+    Router::post('/api/auth/mfa/setup/start', MfaController::setupIniciar(...));
+    Router::post('/api/auth/mfa/setup/confirm', MfaController::setupConfirmar(...));
+    Router::post('/api/auth/mfa/verify', MfaController::verificar(...));
+    Router::post('/api/auth/mfa/backup-codes/regenerate', MfaController::regenerarCodigosBackup(...));
     Router::post('/api/auth/logout', AuthController::logout(...));
     Router::get('/api/auth/me', AuthController::eu(...));
     Router::put('/api/auth/profile', AuthController::atualizarPerfil(...));
@@ -81,6 +86,7 @@ function registrarRotas(): void
     Router::get('/api/admin/users', AdminController::listar(...));
     Router::post('/api/admin/users/{id}/password', AdminController::redefinirSenha(...));
     Router::post('/api/admin/users/{id}/admin', AdminController::definirAdmin(...));
+    Router::post('/api/admin/users/{id}/mfa/reset', AdminController::resetarMfa(...));
     Router::delete('/api/admin/users/{id}', AdminController::excluir(...));
 
     // -------------------------------------------------------- lançamentos

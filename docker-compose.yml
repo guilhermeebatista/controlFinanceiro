@@ -45,6 +45,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
       SMTP_FROM_NOME: ${SMTP_FROM_NOME:-Minhas Contas}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?defina MFA_ENCRYPTION_KEY no arquivo .env}
     ports:
       - "8000:80"
 
