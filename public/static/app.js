@@ -1244,6 +1244,18 @@ $("#pw-form").addEventListener("submit", async (e) => {
   msg.textContent = "Senha alterada. As outras sessões foram encerradas.";
 });
 
+$("#mfa-regen-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const codigo = e.target.elements.codigo.value.trim();
+  const data = await api("/api/auth/mfa/backup-codes/regenerate", {
+    method: "POST", body: JSON.stringify({ codigo }),
+  });
+  e.target.reset();
+  const lista = $("#mfa-regen-list");
+  lista.innerHTML = data.codigos_backup.map((c) => `<li>${esc(c)}</li>`).join("");
+  lista.hidden = false;
+});
+
 loaders.configuracao = () => {
   loadSettings();
   loadMeForm();
@@ -1267,6 +1279,7 @@ async function loadAdminUsers() {
     <td>${u.is_admin ? "✅" : "—"}</td>
     <td class="row-actions">
       <button class="btn small" data-pw="${u.id}" title="Redefinir senha">🔑</button>
+      <button class="btn small" data-mfa="${u.id}" title="Resetar MFA">🔁</button>
       <button class="btn small" data-flag="${u.id}" title="${u.is_admin ? "Rebaixar" : "Tornar admin"}">${u.is_admin ? "⬇️" : "⬆️"}</button>
       <button class="btn small danger" data-del="${u.id}" title="Excluir conta"${u.eu ? " disabled" : ""}>🗑</button>
     </td></tr>`).join("");
@@ -1283,6 +1296,13 @@ async function loadAdminUsers() {
       });
       alert(`Senha de ${u.nome} redefinida. As sessões dela foram encerradas.`);
     });
+  }));
+
+  table.querySelectorAll("[data-mfa]").forEach((b) => b.addEventListener("click", async () => {
+    const u = items.find((i) => i.id == b.dataset.mfa);
+    if (!confirm(`Resetar o MFA de ${u.nome}? A conta vai precisar cadastrar o autenticador de novo no próximo login.`)) return;
+    await api(`/api/admin/users/${u.id}/mfa/reset`, { method: "POST" });
+    alert(`MFA de ${u.nome} foi resetado.`);
   }));
 
   table.querySelectorAll("[data-flag]").forEach((b) => b.addEventListener("click", async () => {
@@ -1312,20 +1332,64 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () 
 /* ---------- Autenticação ---------- */
 let authMode = "login";
 
+const AUTH_CARDS = ["auth-card", "verify-card", "mfa-setup-card", "mfa-backup-card", "mfa-verify-card"];
+
+function mostrarTela(id) {
+  AUTH_CARDS.forEach((cid) => { $("#" + cid).hidden = cid !== id; });
+}
+
 function showAuth() {
   document.body.classList.remove("authed");
   $("#au-pass").value = "";
-  $("#verify-card").hidden = true;
-  $("#auth-card").hidden = false;
+  mostrarTela("auth-card");
 }
 
 function showVerify(email) {
   $("#verify-email").textContent = email;
   $("#verify-codigo").value = "";
   $("#verify-error").hidden = true;
-  $("#auth-card").hidden = true;
-  $("#verify-card").hidden = false;
+  mostrarTela("verify-card");
   $("#verify-codigo").focus();
+}
+
+/** Cadastro do autenticador: busca o segredo/QR e mostra a tela de confirmação. */
+async function iniciarCadastroMfa() {
+  const res = await fetch("/api/auth/mfa/setup/start", { method: "POST", headers: cabecalhos() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(data.detail || "Não foi possível iniciar o cadastro do autenticador.");
+    return;
+  }
+  $("#mfa-secret").textContent = data.segredo;
+  $("#mfa-setup-codigo").value = "";
+  $("#mfa-setup-error").hidden = true;
+  const qr = qrcode(0, "M");
+  qr.addData(data.otpauth_uri);
+  qr.make();
+  $("#mfa-qr").innerHTML = qr.createSvgTag(4);
+  mostrarTela("mfa-setup-card");
+  $("#mfa-setup-codigo").focus();
+}
+
+function mostrarCodigosBackup(codigos) {
+  $("#mfa-backup-list").innerHTML = codigos.map((c) => `<li>${esc(c)}</li>`).join("");
+  mostrarTela("mfa-backup-card");
+}
+
+/** Roteia a resposta de /api/auth/login pelo estágio de MFA em que a conta está. */
+async function tratarRespostaLogin(data) {
+  if (data.status === "mfa_setup_required") {
+    await iniciarCadastroMfa();
+    return;
+  }
+  if (data.status === "mfa_required") {
+    $("#mfa-verify-codigo").value = "";
+    $("#mfa-verify-error").hidden = true;
+    mostrarTela("mfa-verify-card");
+    $("#mfa-verify-codigo").focus();
+    return;
+  }
+  await enterApp(data.nome || data.email, data.is_admin);
 }
 
 function setAuthMode(mode) {
@@ -1373,6 +1437,48 @@ $("#auth-form").addEventListener("submit", async (e) => {
     showVerify(data.email || email);
     return;
   }
+  await tratarRespostaLogin(data);
+});
+
+$("#mfa-setup-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const codigo = $("#mfa-setup-codigo").value.trim();
+  const res = await fetch("/api/auth/mfa/setup/confirm", {
+    method: "POST", headers: cabecalhos(), body: JSON.stringify({ codigo }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = $("#mfa-setup-error");
+    err.textContent = data.detail || "Código inválido.";
+    err.hidden = false;
+    return;
+  }
+  mfaDadosPosBackup = data;
+  mostrarCodigosBackup(data.codigos_backup);
+});
+
+let mfaDadosPosBackup = null;
+$("#mfa-backup-ok").addEventListener("click", async () => {
+  const data = mfaDadosPosBackup;
+  mfaDadosPosBackup = null;
+  mostrarTela(null);
+  await enterApp(data.nome || data.email, data.is_admin);
+});
+
+$("#mfa-verify-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const codigo = $("#mfa-verify-codigo").value.trim();
+  const res = await fetch("/api/auth/mfa/verify", {
+    method: "POST", headers: cabecalhos(), body: JSON.stringify({ codigo }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = $("#mfa-verify-error");
+    err.textContent = data.detail || "Código inválido.";
+    err.hidden = false;
+    return;
+  }
+  mostrarTela(null);
   await enterApp(data.nome || data.email, data.is_admin);
 });
 

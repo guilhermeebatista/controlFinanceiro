@@ -40,6 +40,7 @@ COPY --chown=root:root public/    ./public/
 COPY --chown=root:root src/       ./src/
 COPY --chown=root:root resources/ ./resources/
 COPY --chown=root:root bin/       ./bin/
+COPY --chown=root:root tests/     ./tests/
 COPY --chown=root:root migrations/ ./migrations/
 COPY --chown=root:root database.sql ./database.sql
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh

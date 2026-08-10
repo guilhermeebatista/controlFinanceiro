@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `salt`         VARCHAR(64)   NOT NULL DEFAULT '',
   `is_admin`     TINYINT(1)    NOT NULL DEFAULT 0,
   `email_verificado_em` DATETIME DEFAULT NULL,
+  `mfa_secret_cifrado`  VARBINARY(255) DEFAULT NULL,
+  `mfa_ativado_em`      DATETIME DEFAULT NULL,
   `ultimo_login` DATETIME      DEFAULT NULL,
   `criado_em`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -109,6 +111,40 @@ CREATE TABLE IF NOT EXISTS `email_verifications` (
   `expira_em`   DATETIME     NOT NULL,
   PRIMARY KEY (`user_id`),
   CONSTRAINT `fk_email_verifications_user` FOREIGN KEY (`user_id`)
+    REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ---------------------------------------------------------------------
+--  mfa_pending — pendência entre a senha e o código MFA (ou o cadastro
+--  do autenticador, no primeiro login com MFA exigido)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `mfa_pending` (
+  `token_hash` CHAR(64)               NOT NULL,
+  `user_id`    INT UNSIGNED           NOT NULL,
+  `modo`       ENUM('setup','verify') NOT NULL,
+  `criado_em`  DATETIME               NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expira_em`  DATETIME               NOT NULL,
+  PRIMARY KEY (`token_hash`),
+  KEY `ix_mfa_pending_user` (`user_id`),
+  CONSTRAINT `fk_mfa_pending_user` FOREIGN KEY (`user_id`)
+    REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ---------------------------------------------------------------------
+--  mfa_backup_codes — códigos de uso único para quando o autenticador
+--  não está disponível
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `mfa_backup_codes` (
+  `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`     INT UNSIGNED NOT NULL,
+  `codigo_hash` CHAR(64)     NOT NULL,
+  `criado_em`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `usado_em`    DATETIME     DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_mfa_backup_codes_user` (`user_id`),
+  CONSTRAINT `fk_mfa_backup_codes_user` FOREIGN KEY (`user_id`)
     REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

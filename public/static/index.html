@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap">
 <link rel="stylesheet" href="/static/style.css">
 <script src="/static/vendor/chart.umd.js"></script>
+<script src="/static/vendor/qrcode.js"></script>
 </head>
 <body>
 <div id="auth-screen">
@@ -39,6 +40,32 @@
     <p class="muted">
       <button type="button" class="btn small" id="verify-resend">Reenviar código</button>
     </p>
+  </div>
+  <div class="auth-card" id="mfa-setup-card" hidden>
+    <h1>🔐 Proteja sua conta</h1>
+    <p class="auth-tagline">Escaneie o QR code com o Google Authenticator, Microsoft Authenticator ou similar.</p>
+    <div id="mfa-qr" class="mfa-qr"></div>
+    <p class="muted">Não consegue escanear? Digite manualmente: <code id="mfa-secret"></code></p>
+    <form id="mfa-setup-form">
+      <label>Código do aplicativo<input id="mfa-setup-codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label>
+      <p class="auth-error" id="mfa-setup-error" hidden></p>
+      <button type="submit" class="btn primary">Confirmar</button>
+    </form>
+  </div>
+  <div class="auth-card" id="mfa-backup-card" hidden>
+    <h1>🗝️ Códigos de backup</h1>
+    <p class="auth-tagline"><strong>Guarde estes 10 códigos em local seguro.</strong> Cada um funciona uma única vez, caso você perca o celular. Eles só aparecem aqui, agora.</p>
+    <ul id="mfa-backup-list" class="mfa-backup-codes"></ul>
+    <button type="button" class="btn primary" id="mfa-backup-ok">Já guardei, continuar</button>
+  </div>
+  <div class="auth-card" id="mfa-verify-card" hidden>
+    <h1>🔐 Código de segurança</h1>
+    <p class="auth-tagline">Digite o código do seu aplicativo autenticador (ou um código de backup).</p>
+    <form id="mfa-verify-form">
+      <label>Código<input id="mfa-verify-codigo" inputmode="numeric" maxlength="10" autocomplete="one-time-code" required></label>
+      <p class="auth-error" id="mfa-verify-error" hidden></p>
+      <button type="submit" class="btn primary">Entrar</button>
+    </form>
   </div>
 </div>
 
@@ -287,6 +314,15 @@
           <button class="btn primary">Alterar senha</button>
         </form>
         <p class="muted" id="pw-msg">Ao trocar a senha, as sessões abertas em outros dispositivos são encerradas.</p>
+      </div>
+      <div class="card">
+        <h3>Autenticação em duas etapas</h3>
+        <p class="muted">Sua conta usa um aplicativo autenticador a cada login. Perdeu os códigos de backup? Gere novos aqui.</p>
+        <form id="mfa-regen-form" class="form-grid">
+          <label>Código atual do aplicativo<input name="codigo" inputmode="numeric" maxlength="6" required></label>
+          <button class="btn primary">Gerar novos códigos de backup</button>
+        </form>
+        <ul id="mfa-regen-list" class="mfa-backup-codes" hidden></ul>
       </div>
       <div class="card">
         <h3>Pessoas <button class="btn small" data-add="people">+ Adicionar</button></h3>

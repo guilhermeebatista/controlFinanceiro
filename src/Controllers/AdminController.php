@@ -66,6 +66,20 @@ final class AdminController
         Http::json(['ok' => true]);
     }
 
+    public static function resetarMfa(int $uid): void
+    {
+        Auth::exigirAdmin();
+        Users::buscarOuFalhar($uid);
+
+        Database::transacao(static function () use ($uid): void {
+            Database::run('UPDATE users SET mfa_secret_cifrado = NULL, mfa_ativado_em = NULL WHERE id = ?', [$uid]);
+            Database::run('DELETE FROM mfa_backup_codes WHERE user_id = ?', [$uid]);
+            Database::run('DELETE FROM mfa_pending WHERE user_id = ?', [$uid]);
+        });
+
+        Http::json(['ok' => true]);
+    }
+
     public static function definirAdmin(int $uid): void
     {
         Auth::exigirAdmin();

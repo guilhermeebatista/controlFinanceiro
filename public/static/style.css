@@ -117,6 +117,24 @@ body::before {
   font-size: 13px;
 }
 .auth-card .muted { text-align: center; margin: 16px 0 0; }
+.auth-card code { word-break: break-all; }
+
+.mfa-qr { display: flex; justify-content: center; margin: 12px 0; }
+.mfa-qr svg { width: min(220px, 100%); height: auto; }
+
+.mfa-backup-codes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 16px;
+  font-family: monospace;
+  font-size: 15px;
+  list-style: none;
+  padding: 12px;
+  margin: 12px 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+}
 
 /* ---- Shell: menu lateral + conteúdo ---- */
 /* --topbar-h: altura real da .topbar, medida pelo JS no login e a cada resize.

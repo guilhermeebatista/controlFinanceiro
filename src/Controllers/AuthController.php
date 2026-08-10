@@ -186,14 +186,9 @@ final class AuthController
             Http::erro(403, 'Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada ou peça um novo código.');
         }
 
-        Database::run('UPDATE users SET ultimo_login = UTC_TIMESTAMP() WHERE id = ?', [$uid]);
-        Auth::criarSessao($uid);
-
-        Http::json([
-            'nome'     => $u['nome'] !== null && $u['nome'] !== '' ? $u['nome'] : $u['usuario'],
-            'email'    => $u['email'],
-            'is_admin' => (bool) $u['is_admin'],
-        ]);
+        // ultimo_login só é atualizado quando a sessão real é de fato criada
+        // (dentro do MfaController), depois do código MFA confirmado.
+        Http::json(\MinhasContas\Controllers\MfaController::iniciarPendencia($uid));
     }
 
     public static function logout(): void
