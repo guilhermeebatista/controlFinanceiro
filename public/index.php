@@ -69,6 +69,8 @@ function registrarRotas(): void
 
     // --------------------------------------------------------------- auth
     Router::post('/api/auth/register', AuthController::registrar(...));
+    Router::post('/api/auth/verify-email', AuthController::verificarEmail(...));
+    Router::post('/api/auth/resend-verification', AuthController::reenviarVerificacao(...));
     Router::post('/api/auth/login', AuthController::login(...));
     Router::post('/api/auth/logout', AuthController::logout(...));
     Router::get('/api/auth/me', AuthController::eu(...));

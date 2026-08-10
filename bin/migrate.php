@@ -27,6 +27,7 @@ const PLANILHA_USUARIO = 'planilha';
 
 try {
     aplicarSchema();
+    aplicarMigracoes();
     if (Config::seedContaDemo()) {
         $uid = garantirContaPlanilha();
         semearPlanilha($uid);
@@ -38,6 +39,15 @@ try {
     exit(1);
 }
 
+function schemaExiste(): bool
+{
+    return Database::um(
+        'SELECT 1 FROM information_schema.tables
+          WHERE table_schema = DATABASE() AND table_name = ?',
+        ['users']
+    ) !== null;
+}
+
 /**
  * Aplica o database.sql quando o schema ainda não existe.
  *
@@ -47,12 +57,7 @@ try {
  */
 function aplicarSchema(): void
 {
-    $existe = Database::um(
-        'SELECT 1 FROM information_schema.tables
-          WHERE table_schema = DATABASE() AND table_name = ?',
-        ['users']
-    );
-    if ($existe !== null) {
+    if (schemaExiste()) {
         return;
     }
 
@@ -65,6 +70,60 @@ function aplicarSchema(): void
     echo "[migrate] schema ausente; aplicando database.sql...\n";
     foreach (comandosDo($sql) as $comando) {
         Database::pdo()->exec($comando);
+    }
+}
+
+/**
+ * Aplica migrações incrementais de migrations/*.sql.
+ *
+ * Numa instalação nova o database.sql (aplicado pelo próprio entrypoint do
+ * MySQL antes deste script rodar) já nasce com o schema mais recente — então
+ * cada instrução da migração encontra a coluna/tabela já existente. Por isso
+ * cada comando roda num try/catch que ignora "já existe" (1050 tabela, 1060
+ * coluna, 1061 índice): não há como distinguir de antemão uma instalação nova
+ * de um banco que já tem exatamente essa mudança, então a migração precisa
+ * ser seguramente reexecutável nos dois casos.
+ *
+ * Sem Database::transacao() aqui: ALTER/CREATE TABLE fazem commit implícito
+ * no MySQL, o que fecha a transação por baixo do PDO e quebra o commit/
+ * rollback explícito no fim — DDL nunca foi atômico com o resto de qualquer
+ * jeito.
+ */
+function aplicarMigracoes(): void
+{
+    Database::run(
+        'CREATE TABLE IF NOT EXISTS schema_migrations (
+            versao      VARCHAR(190) NOT NULL PRIMARY KEY,
+            aplicada_em DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+
+    $arquivos = glob(\MinhasContas\Config::raiz() . '/migrations/*.sql') ?: [];
+    sort($arquivos);
+
+    $codigosJaExiste = [1050, 1060, 1061]; // tabela, coluna, índice duplicados.
+
+    foreach ($arquivos as $arquivo) {
+        $versao = basename($arquivo);
+        if (Database::valor('SELECT 1 FROM schema_migrations WHERE versao = ?', [$versao]) !== null) {
+            continue;
+        }
+
+        echo "[migrate] aplicando migração {$versao}...\n";
+        $sql = file_get_contents($arquivo);
+        if ($sql === false) {
+            throw new RuntimeException("Não foi possível ler {$arquivo}");
+        }
+        foreach (comandosDo($sql) as $comando) {
+            try {
+                Database::pdo()->exec($comando);
+            } catch (\PDOException $e) {
+                if (!in_array((int) ($e->errorInfo[1] ?? 0), $codigosJaExiste, true)) {
+                    throw $e;
+                }
+            }
+        }
+        Database::run('INSERT INTO schema_migrations (versao) VALUES (?)', [$versao]);
     }
 }
 

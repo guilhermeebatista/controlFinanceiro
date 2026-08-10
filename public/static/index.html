@@ -12,7 +12,7 @@
 </head>
 <body>
 <div id="auth-screen">
-  <div class="auth-card">
+  <div class="auth-card" id="auth-card">
     <h1>💰 Minhas Contas</h1>
     <p class="auth-tagline">Organize seus gastos pessoais e veja para onde vai o seu dinheiro.</p>
     <div class="auth-tabs">
@@ -27,6 +27,18 @@
       <button type="submit" class="btn primary" id="au-submit">Entrar</button>
     </form>
     <p class="muted" id="au-hint"></p>
+  </div>
+  <div class="auth-card" id="verify-card" hidden>
+    <h1>📧 Confirme seu e-mail</h1>
+    <p class="auth-tagline">Enviamos um código de 6 dígitos para <strong id="verify-email"></strong>.</p>
+    <form id="verify-form">
+      <label>Código de ativação<input id="verify-codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label>
+      <p class="auth-error" id="verify-error" hidden></p>
+      <button type="submit" class="btn primary">Ativar conta</button>
+    </form>
+    <p class="muted">
+      <button type="button" class="btn small" id="verify-resend">Reenviar código</button>
+    </p>
   </div>
 </div>
 
