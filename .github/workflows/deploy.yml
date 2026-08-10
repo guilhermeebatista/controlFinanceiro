@@ -1,0 +1,31 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.ORACLE_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.ORACLE_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sincronizar código para o servidor
+        run: |
+          rsync -avz --relative \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            Dockerfile docker-compose.yml docker-compose.prod.yml database.sql .dockerignore \
+            docker public src resources bin \
+            "${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_HOST }}:/home/ubuntu/minhas-contas/"
+
+      - name: Rebuild e restart dos containers
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_HOST }}" \
+            "cd /home/ubuntu/minhas-contas && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build"
