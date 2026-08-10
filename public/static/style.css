@@ -341,14 +341,28 @@ dialog {
   background: var(--surface-1);
   color: var(--text-primary);
   padding: 24px;
-  min-width: min(520px, 92vw);
+  /* width (não só min-width): sem isso o <dialog> cresce para caber o
+     conteúdo em telas estreitas em vez de encolher, e o modal fica maior
+     que a viewport — mesma armadilha do min-width:0 já resolvida em
+     .content, só que faltou aqui. */
+  width: min(520px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
   box-shadow: var(--glow);
 }
 dialog h3 { margin-top: 0; font-weight: 700; }
 dialog::backdrop { background: rgba(0, 0, 0, .6); backdrop-filter: blur(2px); }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-secondary); }
+/* Sem isso, a tabela larga por baixo continua rolando na horizontal com o
+   modal aberto — confuso em telas estreitas, onde os dois disputam o mesmo
+   gesto de arrastar. */
+body:has(dialog[open]) { overflow: hidden; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-width: 0; }
+.form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-secondary); min-width: 0; }
 .form-grid label.full { grid-column: 1 / -1; }
+.form-grid input, .form-grid select, .form-grid textarea { min-width: 0; }
+@media (max-width: 480px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
 /* ---- Combo com busca ---- */
