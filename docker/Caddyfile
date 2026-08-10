@@ -1,0 +1,3 @@
+contas.guimin.com.br {
+	reverse_proxy app:80
+}
