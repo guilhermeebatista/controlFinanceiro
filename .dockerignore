@@ -1,8 +1,9 @@
+.git/
+.gitignore
+.claude/
+.env
 *.xlsm
 *.xlsx
-scripts/
 data/
-__pycache__/
-*.pyc
-.claude/
 README.md
+security_review.md

@@ -17,13 +17,27 @@ const dateBR = (iso) => (iso ? iso.split("-").reverse().join("/") : "");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
   (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-/* "2026-07-09 14:33:02" (UTC, vindo do SQLite) -> "09/07/2026" */
+/* "2026-07-09 14:33:02" (UTC, vindo do banco) -> "09/07/2026" */
 const dataHoraBR = (s) => (s ? dateBR(s.split(" ")[0]) : "–");
+
+/* O servidor manda o token CSRF num cookie legível (o de sessão continua
+   HttpOnly). Reapresentá-lo num header é o que prova que a requisição partiu
+   desta página: um site de terceiros não consegue ler o cookie nem definir
+   headers numa requisição cross-origin. */
+const csrfToken = () =>
+  document.cookie.split("; ").find((c) => c.startsWith("csrf="))?.slice(5) ?? "";
+
+/* Cabeçalhos de toda chamada à API. */
+const cabecalhos = (extra = {}) => ({
+  "Content-Type": "application/json",
+  "X-CSRF-Token": csrfToken(),
+  ...extra,
+});
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
     ...opts,
+    headers: cabecalhos(opts.headers),
   });
   if (res.status === 401) {
     showAuth();
@@ -434,7 +448,7 @@ function ensurePeopleDatalist() {
     dl.id = "dl-people";
     document.body.append(dl);
   }
-  dl.innerHTML = cachedPeople.map((p) => `<option value="${p.nome}">`).join("");
+  dl.innerHTML = cachedPeople.map((p) => `<option value="${esc(p.nome)}">`).join("");
 }
 
 /* ---------- Lançamentos: filtros por coluna + ordenação ---------- */
@@ -832,14 +846,14 @@ async function loadFluxo() {
   for (const tipo of ["RECEITA", "DESPESA"]) {
     if (!tree[tipo]) continue;
     const tt = tipoTotais[tipo];
-    html += `<tr class="section"><td>${tipo}</td>${months.map((m) => cell(tt[m])).join("")}${cell(sum(tt))}</tr>`;
+    html += `<tr class="section"><td>${esc(tipo)}</td>${months.map((m) => cell(tt[m])).join("")}${cell(sum(tt))}</tr>`;
     const cats = Object.keys(tree[tipo]).sort();
     for (const cat of cats) {
       const c = tree[tipo][cat];
-      html += `<tr class="cat"><td>${cat}</td>${months.map((m) => cell(c.meses[m])).join("")}${cell(sum(c.meses))}</tr>`;
+      html += `<tr class="cat"><td>${esc(cat)}</td>${months.map((m) => cell(c.meses[m])).join("")}${cell(sum(c.meses))}</tr>`;
       if (detail) {
         for (const sub of Object.keys(c.subs).sort()) {
-          html += `<tr class="sub"><td>${sub}</td>${months.map((m) => cell(c.subs[sub][m])).join("")}${cell(sum(c.subs[sub]))}</tr>`;
+          html += `<tr class="sub"><td>${esc(sub)}</td>${months.map((m) => cell(c.subs[sub][m])).join("")}${cell(sum(c.subs[sub]))}</tr>`;
         }
       }
     }
@@ -873,7 +887,7 @@ async function loadPessoas() {
 
   const tbody = $("#pb-table tbody");
   tbody.innerHTML = itens.map((p) => `<tr>
-    <td>${p.pessoa}</td>
+    <td>${esc(p.pessoa)}</td>
     <td class="num ${p.a_pagar ? "neg" : "muted"}">${p.a_pagar ? money(p.a_pagar) : "–"}</td>
     <td class="num ${p.a_receber ? "pos" : "muted"}">${p.a_receber ? money(p.a_receber) : "–"}</td>
     <td class="num ${p.saldo >= 0 ? "pos" : "neg"}">${money(p.saldo)}</td>
@@ -994,8 +1008,10 @@ async function loadResource(key) {
   const { items } = await api(r.path);
   const table = $(RESOURCE_TABLES[key]);
   let html = "<thead><tr>" + r.cols.map(([, l]) => `<th>${l}</th>`).join("") + "<th></th></tr></thead><tbody>";
+  // Os formatadores (money, dateBR) produzem texto controlado por nós; o valor
+  // cru vem do usuário e precisa ser escapado antes de ir para innerHTML.
   html += items.map((it) => "<tr>" + r.cols.map(([k, , f]) =>
-    `<td>${f ? f(it[k], it) : (it[k] ?? "")}</td>`).join("") +
+    `<td>${f ? esc(f(it[k], it)) : esc(it[k] ?? "")}</td>`).join("") +
     `<td class="row-actions"><button class="btn small" data-edit="${it.id}">✏️</button>
      <button class="btn small danger" data-del="${it.id}">🗑</button></td></tr>`).join("");
   html += "</tbody>";
@@ -1114,7 +1130,7 @@ async function loadCategoriesTable() {
   const table = $("#s-categories");
   let html = `<thead><tr><th>Classificação</th><th>Grupo</th><th>Tipo</th>
     <th class="num">Meta mês</th><th></th></tr></thead><tbody>`;
-  html += filtered.map((c) => `<tr><td>${c.classificacao}</td><td>${c.grupo}</td><td>${c.tipo}</td>
+  html += filtered.map((c) => `<tr><td>${esc(c.classificacao)}</td><td>${esc(c.grupo)}</td><td>${esc(c.tipo)}</td>
     <td class="num">${c.meta_mes ? money(c.meta_mes) : "–"}</td>
     <td class="row-actions"><button class="btn small" data-edit="${c.id}">✏️</button>
     <button class="btn small danger" data-del="${c.id}">🗑</button></td></tr>`).join("");
@@ -1162,7 +1178,13 @@ $("#imp-btn").addEventListener("click", async () => {
   form.append("file", input.files[0]);
   form.append("replace", replace ? "true" : "false");
   try {
-    const res = await fetch("/api/import", { method: "POST", body: form });
+    // Sem Content-Type aqui de propósito: o navegador precisa gerar o
+    // boundary do multipart. Só o token CSRF vai no header.
+    const res = await fetch("/api/import", {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken() },
+      body: form,
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       result.textContent = "Erro: " + (data.detail || "não foi possível importar.");
@@ -1326,7 +1348,7 @@ $("#auth-form").addEventListener("submit", async (e) => {
   }
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: cabecalhos(),
     body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));
@@ -1340,7 +1362,7 @@ $("#auth-form").addEventListener("submit", async (e) => {
 });
 
 $("#logout-btn").addEventListener("click", async () => {
-  await fetch("/api/auth/logout", { method: "POST" });
+  await fetch("/api/auth/logout", { method: "POST", headers: cabecalhos() });
   location.reload();
 });
 

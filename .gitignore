@@ -1,10 +1,8 @@
-# Banco de dados: dados locais, nunca versionar
-data/
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
+# Credenciais do ambiente — nunca versionadas. Use .env.example como modelo.
+.env
 
-# Python
-__pycache__/
-*.pyc
+# Backups gerados por bin/export_backup.php
+backup_*.xlsx
+
+# Banco SQLite da versão anterior (fonte da migração)
+data/
