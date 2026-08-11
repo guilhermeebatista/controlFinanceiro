@@ -140,7 +140,7 @@ body::before {
 /* --topbar-h: altura real da .topbar, medida pelo JS no login e a cada resize.
    O cabeçalho fixo da tabela gruda logo abaixo dela. O valor aqui é só o palpite
    inicial, usado antes da primeira medição. */
-:root { --side-w: 236px; --side-w-collapsed: 68px; --topbar-h: 52px; }
+:root { --side-w: 236px; --topbar-h: 52px; }
 
 .app-shell { display: flex; min-height: 100vh; }
 .content { flex: 1; min-width: 0; }   /* min-width:0 deixa tabelas largas rolarem em vez de esticar o shell */
@@ -213,13 +213,57 @@ body::before {
 .userbox { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 #user-name { font-size: 13px; color: var(--text-secondary); }
 
-/* Sem botão de menu: em tela estreita a barra vira uma trilha só de ícones,
-   automaticamente. Continua sempre visível e clicável. */
+/* Botão hambúrguer: só existe visualmente em tela estreita (ver media query). */
+.menu-toggle {
+  display: none;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.menu-toggle span { width: 16px; height: 2px; background: var(--text-primary); border-radius: 2px; }
+
+/* Abaixo de 900px o menu lateral some por padrão e vira uma gaveta (drawer)
+   acionada pelo hambúrguer — em vez da trilha só de ícones de antes, que
+   ficava sempre ocupando a tela e não dava pra ler os rótulos. */
 @media (max-width: 900px) {
-  #sidebar { flex-basis: var(--side-w-collapsed); width: var(--side-w-collapsed); }
-  .side-label { display: none; }
-  #tabs button, .side-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+  .menu-toggle { display: flex; }
   .topbar-brand { display: block; }
+
+  #sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(78vw, var(--side-w));
+    flex-basis: auto;
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, .5);
+  }
+  #sidebar.open { transform: translateX(0); }
+
+  #sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, .55);
+  }
+  #sidebar-backdrop[hidden] { display: none; }
+
+  /* Filtros: rótulo em cima do campo em vez de lado a lado — mais fácil de
+     ler e o campo fica largo o bastante para tocar sem errar. */
+  .filters { flex-direction: column; align-items: stretch; gap: 12px; }
+  .filters label { flex-direction: column; align-items: stretch; gap: 5px; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  .filters label select, .filters label input { width: 100%; }
+  .filters > input[type="search"] { min-width: 0; width: 100%; }
 }
 
 main { position: relative; z-index: 1; padding: 24px 22px; max-width: 1600px; margin: 0 auto; }
