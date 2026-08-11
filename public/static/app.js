@@ -80,6 +80,22 @@ function ajustarTopbar() {
 }
 window.addEventListener("resize", ajustarTopbar);
 
+/* ---------- Menu lateral (gaveta no mobile) ---------- */
+function fecharMenu() {
+  $("#sidebar").classList.remove("open");
+  $("#sidebar-backdrop").hidden = true;
+  $("#menu-toggle").setAttribute("aria-expanded", "false");
+}
+function abrirMenu() {
+  $("#sidebar").classList.add("open");
+  $("#sidebar-backdrop").hidden = false;
+  $("#menu-toggle").setAttribute("aria-expanded", "true");
+}
+$("#menu-toggle").addEventListener("click", () => {
+  $("#sidebar").classList.contains("open") ? fecharMenu() : abrirMenu();
+});
+$("#sidebar-backdrop").addEventListener("click", fecharMenu);
+
 /* ---------- Tabs ---------- */
 const loaders = {};
 $$("#tabs button").forEach((btn) => {
@@ -88,6 +104,7 @@ $$("#tabs button").forEach((btn) => {
     $$(".tab").forEach((t) => t.classList.remove("active"));
     $("#tab-" + btn.dataset.tab).classList.add("active");
     loaders[btn.dataset.tab]?.();
+    fecharMenu();
   });
 });
 
