@@ -65,6 +65,12 @@ final class AuthController
     /**
      * Gera um código de 6 dígitos, substitui qualquer pendência anterior da
      * conta e envia por e-mail. Só o SHA-256 do código fica no banco.
+     *
+     * Falha de envio (SMTP fora do ar, credencial errada) não pode virar 500:
+     * quem chama isso já criou a conta com sucesso antes deste ponto, e um
+     * 500 aqui a deixaria travada — sem código e sem poder recadastrar
+     * (o e-mail já existe). O código fica salvo; "reenviar código" tenta nele
+     * de novo depois que o SMTP voltar.
      */
     private static function enviarCodigoVerificacao(int $uid, string $email): void
     {
@@ -74,13 +80,21 @@ final class AuthController
              ON DUPLICATE KEY UPDATE codigo_hash = VALUES(codigo_hash), criado_em = CURRENT_TIMESTAMP, expira_em = VALUES(expira_em)',
             [$uid, hash('sha256', $codigo), gmdate('Y-m-d H:i:s', time() + Config::EMAIL_VERIFICACAO_TTL_SEGUNDOS)]
         );
-        Mailer::enviar(
-            $email,
-            'Código de ativação — Minhas Contas',
-            "Seu código de ativação é: {$codigo}\n\n"
-            . "Digite-o na tela de ativação para confirmar seu e-mail. O código expira em 15 minutos.\n\n"
-            . 'Se você não criou esta conta, ignore este e-mail.'
-        );
+        try {
+            Mailer::enviar(
+                $email,
+                'Código de ativação — Minhas Contas',
+                "Seu código de ativação é: {$codigo}\n\n"
+                . "Digite-o na tela de ativação para confirmar seu e-mail. O código expira em 15 minutos.\n\n"
+                . 'Se você não criou esta conta, ignore este e-mail.'
+            );
+        } catch (\Throwable $e) {
+            error_log(sprintf(
+                '[minhas-contas] Falha ao enviar código de verificação para %s: %s',
+                $email,
+                $e->getMessage()
+            ));
+        }
     }
 
     /**
