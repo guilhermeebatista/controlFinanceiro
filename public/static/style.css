@@ -158,11 +158,12 @@ body {
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
-.side-ico { flex: 0 0 22px; font-size: 16px; text-align: center; line-height: 1; }
 .side-label { overflow: hidden; text-overflow: ellipsis; }
+.side-brand .ico { color: var(--gold); }
 
 #tabs { display: flex; flex-direction: column; gap: 3px; }
 #tabs button {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -181,7 +182,21 @@ body {
   transition: background .15s, color .15s;
 }
 #tabs button:hover { background: var(--surface-2); color: var(--text-primary); }
+/* Ativo: fundo discreto + barra dourada de 2px encostada na borda esquerda.
+   Fica no ::before posicionado para nao empurrar o conteudo nem mudar a
+   altura da linha — sem isso o item "pula" ao trocar de aba. */
 #tabs button.active { background: var(--gold-dim); color: var(--text-primary); }
+#tabs button.active .ico { color: var(--gold); }
+#tabs button.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--gold);
+}
 
 /* ---- Barra superior ---- */
 .topbar {
@@ -198,6 +213,7 @@ body {
 }
 .topbar-brand { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; display: none; }
 .userbox { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.userbox .ico { color: var(--text-secondary); }
 #user-name { font-size: 13px; color: var(--text-secondary); }
 
 /* Botão hambúrguer: só existe visualmente em tela estreita (ver media query). */
@@ -211,12 +227,9 @@ body {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   cursor: pointer;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
 }
-.menu-toggle span { width: 16px; height: 2px; background: var(--text-primary); border-radius: 2px; }
 
 /* Abaixo de 900px o menu lateral some por padrão e vira uma gaveta (drawer)
    acionada pelo hambúrguer — em vez da trilha só de ícones de antes, que
@@ -515,3 +528,5 @@ body.authed #auth-screen { display: none; }
   stroke-linejoin: round;
 }
 .btn .ico { width: 15px; height: 15px; vertical-align: -3px; }
+.ico-lg { width: 22px; height: 22px; vertical-align: -5px; }
+.ico-sm { width: 15px; height: 15px; }
