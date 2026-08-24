@@ -25,7 +25,9 @@
   --gold-border rgba(212,175,55,.35)     --on-gold #0A0A0B
   --good #3FB950   --bad #E5534B         --radius 12px   --radius-sm 8px
   ```
-- **Geometria dos ícones:** `viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `stroke-width="1.5"`, `stroke-linecap="round"`, `stroke-linejoin="round"`. Esses cinco atributos ficam no `<svg>` do sprite, herdados pelos `<symbol>`.
+- **Geometria dos ícones:** `viewBox="0 0 24 24"` em cada `<symbol>`. Os cinco valores de traço (`fill: none`, `stroke: currentColor`, `stroke-width: 1.5`, `stroke-linecap: round`, `stroke-linejoin: round`) vão **na regra CSS `.ico`**, não como atributos no `<svg>` do sprite.
+
+  **Por quê (verificado em Chrome real, não presumido):** o `<use>` clona o `<symbol>` numa shadow tree cujo pai é o próprio `<use>` — a herança segue a posição do **uso**, não a da definição. Atributos de apresentação no `<svg id="sprite">` portanto nunca alcançam o clone, e o ícone renderiza com o `fill` padrão (preto sólido), virando um borrão. Propriedades CSS herdáveis aplicadas em `.ico` **atravessam** para a shadow tree e funcionam. Uma versão anterior deste plano afirmava o contrário e estava errada.
 - **Idioma:** toda string visível ao usuário em português do Brasil, como já é hoje.
 - **Commits:** mensagem no formato `<tipo>: <descrição>` em português, conforme o histórico do repositório.
 
