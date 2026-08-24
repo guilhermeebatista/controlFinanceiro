@@ -88,7 +88,7 @@
 </svg>
 <div id="auth-screen">
   <div class="auth-card" id="auth-card">
-    <h1>💰 Minhas Contas</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-wallet"/></svg> Minhas Contas</h1>
     <p class="auth-tagline">Organize seus gastos pessoais e veja para onde vai o seu dinheiro.</p>
     <div class="auth-tabs">
       <button type="button" data-mode="login" class="active">Entrar</button>
@@ -104,7 +104,7 @@
     <p class="muted" id="au-hint"></p>
   </div>
   <div class="auth-card" id="verify-card" hidden>
-    <h1>📧 Confirme seu e-mail</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-mail"/></svg> Confirme seu e-mail</h1>
     <p class="auth-tagline">Enviamos um código de 6 dígitos para <strong id="verify-email"></strong>.</p>
     <form id="verify-form">
       <label>Código de ativação<input id="verify-codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label>
@@ -116,7 +116,7 @@
     </p>
   </div>
   <div class="auth-card" id="mfa-setup-card" hidden>
-    <h1>🔐 Proteja sua conta</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-lock"/></svg> Proteja sua conta</h1>
     <p class="auth-tagline">Escaneie o QR code com o Google Authenticator, Microsoft Authenticator ou similar.</p>
     <div id="mfa-qr" class="mfa-qr"></div>
     <p class="muted">Não consegue escanear? Digite manualmente: <code id="mfa-secret"></code></p>
@@ -127,13 +127,13 @@
     </form>
   </div>
   <div class="auth-card" id="mfa-backup-card" hidden>
-    <h1>🗝️ Códigos de backup</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-key"/></svg> Códigos de backup</h1>
     <p class="auth-tagline"><strong>Guarde estes 10 códigos em local seguro.</strong> Cada um funciona uma única vez, caso você perca o celular. Eles só aparecem aqui, agora.</p>
     <ul id="mfa-backup-list" class="mfa-backup-codes"></ul>
     <button type="button" class="btn primary" id="mfa-backup-ok">Já guardei, continuar</button>
   </div>
   <div class="auth-card" id="mfa-verify-card" hidden>
-    <h1>🔐 Código de segurança</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-lock"/></svg> Código de segurança</h1>
     <p class="auth-tagline">Digite o código do seu aplicativo autenticador (ou um código de backup).</p>
     <form id="mfa-verify-form">
       <label>Código<input id="mfa-verify-codigo" inputmode="numeric" maxlength="10" autocomplete="one-time-code" required></label>
@@ -147,38 +147,39 @@
 <div id="sidebar-backdrop" hidden></div>
 <aside id="sidebar">
   <div class="side-brand">
-    <span class="side-ico">💰</span>
+    <svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>
     <span class="side-label">Minhas Contas</span>
   </div>
   <nav id="tabs">
     <button data-tab="dashboard" class="active" title="Dashboard">
-      <span class="side-ico">📊</span><span class="side-label">Dashboard</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-dashboard"/></svg><span class="side-label">Dashboard</span></button>
     <button data-tab="lancamentos" title="Lançamentos">
-      <span class="side-ico">🧾</span><span class="side-label">Lançamentos</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-list"/></svg><span class="side-label">Lançamentos</span></button>
     <button data-tab="pessoas" title="Por Pessoa">
-      <span class="side-ico">👥</span><span class="side-label">Por Pessoa</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-users"/></svg><span class="side-label">Por Pessoa</span></button>
     <button data-tab="fluxo" title="Fluxo">
-      <span class="side-ico">📈</span><span class="side-label">Fluxo</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-trend"/></svg><span class="side-label">Fluxo</span></button>
     <button data-tab="patrimonio" title="Patrimônio">
-      <span class="side-ico">🏦</span><span class="side-label">Patrimônio</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-landmark"/></svg><span class="side-label">Patrimônio</span></button>
     <button data-tab="projetos" title="Projetos">
-      <span class="side-ico">🎯</span><span class="side-label">Projetos</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-target"/></svg><span class="side-label">Projetos</span></button>
     <button data-tab="registro" title="Registro">
-      <span class="side-ico">📥</span><span class="side-label">Registro</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-inbox"/></svg><span class="side-label">Registro</span></button>
     <button data-tab="configuracao" title="Configuração">
-      <span class="side-ico">⚙️</span><span class="side-label">Configuração</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-settings"/></svg><span class="side-label">Configuração</span></button>
     <button data-tab="admin" id="tab-admin-btn" title="Admin" hidden>
-      <span class="side-ico">🛡️</span><span class="side-label">Admin</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span class="side-label">Admin</span></button>
   </nav>
 </aside>
 
 <div class="content">
 <header class="topbar">
   <button id="menu-toggle" class="menu-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar">
-    <span></span><span></span><span></span>
+    <svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg>
   </button>
   <span class="topbar-brand">Minhas Contas</span>
   <div class="userbox">
+    <svg class="ico ico-sm" aria-hidden="true"><use href="#i-user"/></svg>
     <span id="user-name"></span>
     <button class="btn small" id="logout-btn">Sair</button>
   </div>
@@ -230,14 +231,14 @@
       <label>Tipo <select id="l-tipo">
         <option value="">Todos</option><option>RECEITA</option><option>DESPESA</option>
       </select></label>
-      <button class="btn" id="l-clearfilters" hidden>✖ Limpar filtros de coluna</button>
-      <button class="btn primary" id="l-new">+ Novo lançamento</button>
+      <button class="btn" id="l-clearfilters" hidden><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg> Limpar filtros de coluna</button>
+      <button class="btn primary" id="l-new"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Novo lançamento</button>
     </div>
     <div class="card">
       <div class="bulkbar" id="l-bulkbar" hidden>
         <span id="l-selcount">0 selecionados</span>
-        <button class="btn primary" id="l-bulkedit">✏️ Alterar selecionados</button>
-        <button class="btn danger" id="l-bulkdel">🗑 Excluir selecionados</button>
+        <button class="btn primary" id="l-bulkedit"><svg class="ico" aria-hidden="true"><use href="#i-pencil"/></svg> Alterar selecionados</button>
+        <button class="btn danger" id="l-bulkdel"><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg> Excluir selecionados</button>
         <button class="btn" id="l-clearsel">Limpar seleção</button>
       </div>
       <table id="l-table" class="tabela-cheia">
@@ -309,15 +310,15 @@
   <section id="tab-patrimonio" class="tab">
     <div class="grid-2">
       <div class="card wide">
-        <h3>Investimentos <button class="btn small" data-add="investments">+ Adicionar</button></h3>
+        <h3>Investimentos <button class="btn small" data-add="investments"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="p-investments"></table></div>
       </div>
       <div class="card">
-        <h3>Bens <button class="btn small" data-add="assets">+ Adicionar</button></h3>
+        <h3>Bens <button class="btn small" data-add="assets"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="p-assets"></table></div>
       </div>
       <div class="card">
-        <h3>Dívidas <button class="btn small" data-add="debts">+ Adicionar</button></h3>
+        <h3>Dívidas <button class="btn small" data-add="debts"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="p-debts"></table></div>
       </div>
       <div class="card wide"><h3>Resumo</h3><div id="p-summary" class="tiles"></div></div>
@@ -327,7 +328,7 @@
   <!-- PROJETOS -->
   <section id="tab-projetos" class="tab">
     <div class="card">
-      <h3>Projetos <button class="btn small" data-add="projects">+ Adicionar</button></h3>
+      <h3>Projetos <button class="btn small" data-add="projects"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
       <div class="table-scroll"><table id="j-table"></table></div>
     </div>
     <div class="card">
@@ -341,11 +342,11 @@
   <section id="tab-registro" class="tab">
     <div class="grid-2">
       <div class="card">
-        <h3>Arquivos OFX importados <button class="btn small" data-add="ofx">+ Adicionar</button></h3>
+        <h3>Arquivos OFX importados <button class="btn small" data-add="ofx"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="r-ofx"></table></div>
       </div>
       <div class="card">
-        <h3>Pagamentos de cartão <button class="btn small" data-add="card-payments">+ Adicionar</button></h3>
+        <h3>Pagamentos de cartão <button class="btn small" data-add="card-payments"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="r-cards"></table></div>
       </div>
     </div>
@@ -403,15 +404,15 @@
         <ul id="mfa-regen-list" class="mfa-backup-codes" hidden></ul>
       </div>
       <div class="card">
-        <h3>Pessoas <button class="btn small" data-add="people">+ Adicionar</button></h3>
+        <h3>Pessoas <button class="btn small" data-add="people"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="s-people"></table></div>
       </div>
       <div class="card wide">
-        <h3>Instituições / Cartões <button class="btn small" data-add="institutions">+ Adicionar</button></h3>
+        <h3>Instituições / Cartões <button class="btn small" data-add="institutions"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="s-institutions"></table></div>
       </div>
       <div class="card wide">
-        <h3>Classificações <button class="btn small" id="s-newcat">+ Adicionar</button></h3>
+        <h3>Classificações <button class="btn small" id="s-newcat"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="filters">
           <input id="s-catq" type="search" placeholder="Filtrar classificações…">
         </div>

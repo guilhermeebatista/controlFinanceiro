@@ -53,7 +53,11 @@ afirmar(str_contains($js, 'const ico ='), 'app.js define o helper ico()');
 // valores de traco por isso precisam estar na regra .ico como CSS herdavel,
 // que atravessa a shadow tree a partir do site de uso (nao do de definicao).
 
-afirmar((bool) preg_match('/\.ico\s*\{([^}]*)\}/s', $css, $mIco), 'style.css define a classe .ico');
+// Ancorado no inicio da linha: Task 3 introduz seletores compostos como
+// ".side-brand .ico" e "#tabs button.active .ico", cuja substring ".ico {"
+// tambem bateria num regex sem ancora — pegando a regra errada (sem os
+// valores de traco) em vez da definicao real da classe .ico.
+afirmar((bool) preg_match('/^\.ico\s*\{([^}]*)\}/ms', $css, $mIco), 'style.css define a classe .ico');
 $regraIco = $mIco[1] ?? '';
 
 afirmar((bool) preg_match('/stroke:\s*currentColor/', $regraIco),
@@ -104,5 +108,27 @@ foreach ($m[0] as $sombra) {
     afirmar(!preg_match('/212,\s*175,\s*55/', $sombra),
         'box-shadow sem dourado (regra do dourado racionado): ' . trim($sombra));
 }
+
+// ---- index.html sem emoji ----
+
+$emoji = '/[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}\x{FE0F}]/u';
+afirmar(!preg_match($emoji, $html), 'index.html nao contem nenhum emoji');
+
+// Todo <use href="#i-*"> aponta para um symbol que existe.
+preg_match_all('/href="#(i-[a-z-]+)"/', $html, $m);
+afirmar(count($m[1]) > 0, 'index.html usa icones do sprite');
+foreach (array_unique($m[1]) as $usado) {
+    afirmar(in_array($usado, $definidos, true), "icone {$usado} usado no HTML existe no sprite");
+}
+
+// Os 9 itens de navegacao tem icone.
+preg_match('/<nav id="tabs">(.*?)<\/nav>/s', $html, $nav);
+afirmar(isset($nav[1]), 'bloco <nav id="tabs"> encontrado');
+afirmar(substr_count($nav[1], '<use href="#i-') === 9, 'os 9 itens do menu lateral tem icone');
+
+// O nome do usuario e um span proprio: app.js escreve nele via textContent
+// e nao pode mais carregar o emoji junto.
+afirmar((bool) preg_match('/<span id="user-name"><\/span>/', $html),
+    '#user-name e um span vazio (icone fica fora dele)');
 
 echo "\nTodos os testes de frontend passaram.\n";
