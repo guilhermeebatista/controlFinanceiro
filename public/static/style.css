@@ -530,3 +530,6 @@ body.authed #auth-screen { display: none; }
 .btn .ico { width: 15px; height: 15px; vertical-align: -3px; }
 .ico-lg { width: 22px; height: 22px; vertical-align: -5px; }
 .ico-sm { width: 15px; height: 15px; }
+
+#imp-result { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+#imp-result .ico { color: var(--good); }
