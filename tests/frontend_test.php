@@ -63,4 +63,46 @@ afirmar((bool) preg_match('/fill:\s*none/', $regraIco),
 afirmar((bool) preg_match('/stroke-width:\s*1\.5/', $regraIco),
     '.ico usa stroke-width 1.5');
 
+// ---- Tema: variaveis ----
+
+// As 8 que o Chart.js le via cssVar(). Se alguma sumir, o grafico renderiza
+// com cor vazia e o bug so aparece a olho nu.
+preg_match_all('/cssVar\("(--[a-z0-9-]+)"\)/', $js, $m);
+foreach (array_unique($m[1]) as $var) {
+    afirmar((bool) preg_match('/^\s*' . preg_quote($var, '/') . '\s*:/m', $css),
+        "variavel {$var}, lida pelo app.js, existe no style.css");
+}
+
+// Variaveis do tema antigo, removidas.
+foreach (['--glow', '--grad', '--grad-btn', '--primary', '--primary-dark',
+          '--primary-soft', '--series-1', '--baseline'] as $morta) {
+    afirmar(!str_contains($css, $morta),
+        "variavel do tema antigo {$morta} nao aparece mais no style.css");
+}
+
+// Variaveis do tema novo.
+foreach (['--page', '--surface-1', '--surface-2', '--surface-3', '--border',
+          '--border-strong', '--text-primary', '--text-secondary', '--muted',
+          '--gold', '--gold-soft', '--gold-dim', '--gold-border', '--on-gold',
+          '--good', '--bad', '--radius', '--radius-sm'] as $nova) {
+    afirmar((bool) preg_match('/^\s*' . preg_quote($nova, '/') . '\s*:/m', $css),
+        "variavel do tema novo {$nova} definida");
+}
+
+// ---- Tema: sem residuo roxo/ciano nem glow ----
+
+afirmar(!preg_match('/108,\s*99,\s*255/', $css), 'sem literal roxo #6C63FF em rgba()');
+afirmar(!preg_match('/0,\s*212,\s*255/', $css), 'sem literal ciano #00D4FF em rgba()');
+afirmar(!preg_match('/#6C63FF|#4f46e5|#a5a0ff|#00D4FF/i', $css), 'sem hex do tema antigo');
+afirmar(!str_contains($css, 'body::before'), 'halo radial roxo do fundo removido');
+afirmar(!preg_match('/linear-gradient/', $css), 'nenhum gradiente sobrou no CSS');
+
+// A regra do dourado: nada de glow. Sombras difusas so as pretas de
+// elevacao (dialog, combo, popover), nunca coloridas.
+preg_match_all('/box-shadow:[^;]+;/', $css, $m);
+foreach ($m[0] as $sombra) {
+    afirmar(!preg_match('/212,\s*175,\s*55/', $sombra),
+        'box-shadow sem dourado (regra do dourado racionado): ' . trim($sombra));
+}
+
 echo "\nTodos os testes de frontend passaram.\n";
