@@ -145,4 +145,86 @@ foreach (array_unique($m[1]) as $nome) {
 afirmar(!preg_match('/user-name"\)\.textContent\s*=\s*"[^"]*"\s*\+/', $js),
     '#user-name recebe so o nome, sem prefixo concatenado');
 
+// ---- Acessibilidade e polimento ----
+
+// Todo botao cujo conteudo visivel e so um icone precisa de rotulo
+// acessivel. Deteccao por lista explicita em vez de regex generica: os
+// botoes so-icone sao conhecidos e finitos, e um regex que tenta casar
+// "<button> cujo unico filho e um svg" gera falso positivo em botao com
+// icone + texto.
+$soIcone = [
+    ['app.js', '/data-edit(?:="\$\{[a-z]+\.id\}")?[^>]*aria-label=/', 'botao de editar linha'],
+    ['app.js', '/data-del="\$\{[a-z]+\.id\}"[^>]*aria-label=/',        'botao de excluir linha'],
+    ['app.js', '/data-pw="[^"]*"[^>]*aria-label=/',                       'botao de redefinir senha'],
+    ['app.js', '/data-mfa="[^"]*"[^>]*aria-label=/',                      'botao de resetar MFA'],
+    ['app.js', '/data-flag="[^"]*"[^>]*aria-label=/',                     'botao de promover/rebaixar'],
+    ['index.html', '/id="menu-toggle"[^>]*aria-label=/',                  'botao hamburguer'],
+];
+foreach ($soIcone as [$arquivo, $padrao, $descricao]) {
+    $conteudo = $arquivo === 'app.js' ? $js : $html;
+    afirmar((bool) preg_match($padrao, $conteudo),
+        "{$descricao} ({$arquivo}) tem aria-label");
+}
+
+// E nenhum botao pode ter ficado com o icone como unico conteudo sem rotulo:
+// varre os data-* de acao no app.js e exige aria-label em todos.
+preg_match_all('/<button\b[^>]*data-(?:edit|del|pw|mfa|flag)\b[^>]*>/', $js, $m);
+afirmar(count($m[0]) >= 8, 'encontrou os botoes de acao gerados pelo JS');
+foreach ($m[0] as $tag) {
+    afirmar(str_contains($tag, 'aria-label='),
+        'botao de acao com aria-label: ' . trim(substr($tag, 0, 60)));
+}
+
+// Anel de foco visivel — hoje so inputs reagiam ao foco.
+afirmar(str_contains($css, ':focus-visible'), 'style.css define anel de :focus-visible');
+afirmar((bool) preg_match('/:focus-visible[^{]*\{[^}]*outline[^}]*var\(--gold\)/', $css),
+    'anel de foco usa --gold');
+
+// Numeros nao mudam de largura a cada atualizacao.
+afirmar((bool) preg_match('/\.tile-value[^{]*\{[^}]*tabular-nums/', $css),
+    '.tile-value usa tabular-nums');
+
+// ---- Contraste: --muted sobre --surface-1 (WCAG AA, texto pequeno >= 4.5:1) ----
+// --muted e usado em .muted (12px) para texto de apoio real. Achado na
+// revisao da Task 2: o valor antigo (#6E6E76) so alcancava 3.70:1 contra
+// --surface-1 (#121213) — abaixo do minimo de 4.5:1 para texto < 18px/14pt
+// bold. As cores sao extraidas do bloco :root em vez de hardcoded aqui, para
+// que uma futura alteracao da paleta seja pega por este teste em vez de
+// passar batido.
+
+function luminanciaRelativa(string $hex): float
+{
+    $hex = ltrim($hex, '#');
+    [$r, $g, $b] = [
+        hexdec(substr($hex, 0, 2)),
+        hexdec(substr($hex, 2, 2)),
+        hexdec(substr($hex, 4, 2)),
+    ];
+    $linear = function (int $canal): float {
+        $s = $canal / 255;
+        return $s <= 0.03928 ? $s / 12.92 : (($s + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * $linear($r) + 0.7152 * $linear($g) + 0.0722 * $linear($b);
+}
+
+function razaoContraste(string $hexA, string $hexB): float
+{
+    $lA = luminanciaRelativa($hexA);
+    $lB = luminanciaRelativa($hexB);
+    [$lMax, $lMin] = $lA >= $lB ? [$lA, $lB] : [$lB, $lA];
+    return ($lMax + 0.05) / ($lMin + 0.05);
+}
+
+afirmar((bool) preg_match('/:root\s*\{(.*?)\n\}/s', $css, $mRaiz), 'style.css define bloco :root');
+$blocoRaiz = $mRaiz[1] ?? '';
+
+afirmar((bool) preg_match('/--muted:\s*(#[0-9a-fA-F]{6})/', $blocoRaiz, $mMuted),
+    ':root define --muted como hex');
+afirmar((bool) preg_match('/--surface-1:\s*(#[0-9a-fA-F]{6})/', $blocoRaiz, $mSurface1),
+    ':root define --surface-1 como hex');
+
+$razaoMuted = razaoContraste($mMuted[1], $mSurface1[1]);
+afirmar($razaoMuted >= 4.5,
+    "--muted sobre --surface-1 atinge 4.5:1 (WCAG AA para texto pequeno); calculado: {$razaoMuted}");
+
 echo "\nTodos os testes de frontend passaram.\n";
