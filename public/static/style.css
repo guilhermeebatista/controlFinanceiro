@@ -292,6 +292,15 @@ select:focus, input:focus, textarea:focus { outline: none; border-color: var(--g
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
+
+/* Os controles de formulario precisam da propria regra: o
+   "select:focus, input:focus, textarea:focus { outline: none }" acima tem
+   especificidade (0,1,1) e venceria o :focus-visible generico, que e (0,1,0).
+   Especificidade e resolvida antes da ordem no arquivo. */
+select:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
 input[type="search"] { min-width: 240px; }
 input::placeholder { color: var(--muted); }
 

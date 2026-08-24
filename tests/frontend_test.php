@@ -176,12 +176,38 @@ foreach ($m[0] as $tag) {
 }
 
 // Anel de foco visivel — hoje so inputs reagiam ao foco.
-afirmar(str_contains($css, ':focus-visible'), 'style.css define anel de :focus-visible');
-afirmar((bool) preg_match('/:focus-visible[^{]*\{[^}]*outline[^}]*var\(--gold\)/', $css),
+// Ancorado no inicio da linha (mesmo motivo do .ico, ja corrigido tres
+// vezes neste arquivo): ":focus-visible" e substring de
+// "select:focus-visible", entao um regex sem ancora podia casar dentro do
+// seletor composto errado dependendo da ordem das regras no arquivo.
+afirmar((bool) preg_match('/^:focus-visible\s*\{([^}]*)\}/m', $css, $mFoco),
+    'style.css define anel de :focus-visible');
+afirmar((bool) preg_match('/outline:\s*2px solid var\(--gold\)/', $mFoco[1] ?? ''),
     'anel de foco usa --gold');
 
+// Especificidade: "select:focus, input:focus, textarea:focus" tem
+// especificidade (0,1,1) e vencia o ":focus-visible" generico acima, que e
+// (0,1,0) — o "outline: none" daquela regra apagava o anel exatamente nos
+// elementos de formulario que mais precisam dele (bug real, achado em
+// revisao manual no navegador: outlineStyle computava "none" num <select>
+// mesmo com :focus-visible === true). Precisa de uma regra dedicada
+// "select:focus-visible, input:focus-visible, textarea:focus-visible" cuja
+// especificidade (0,2,1) vence a regra antiga. Isto NAO e so grep de texto:
+// assert que essa regra de override existe e realmente usa --gold, para
+// nao voltar a passar so por acaso de ordenacao.
+afirmar((bool) preg_match(
+    '/^select:focus-visible,\s*input:focus-visible,\s*textarea:focus-visible\s*\{([^}]*)\}/m',
+    $css, $mFocoForm
+), 'style.css define :focus-visible dedicado para select/input/textarea (override de especificidade)');
+$regraFocoForm = $mFocoForm[1] ?? '';
+afirmar((bool) preg_match('/outline:\s*2px solid var\(--gold\)/', $regraFocoForm),
+    ':focus-visible de formulario usa --gold');
+
 // Numeros nao mudam de largura a cada atualizacao.
-afirmar((bool) preg_match('/\.tile-value[^{]*\{[^}]*tabular-nums/', $css),
+// Ancorado no inicio da linha: sem isso, o regex bateria em
+// ".tile-value.pos {" ou ".tile-value.neg {" (regras seguintes) em vez da
+// definicao real de ".tile-value".
+afirmar((bool) preg_match('/^\.tile-value\s*\{[^}]*tabular-nums[^}]*\}/m', $css),
     '.tile-value usa tabular-nums');
 
 // ---- Contraste: --muted sobre --surface-1 (WCAG AA, texto pequeno >= 4.5:1) ----
