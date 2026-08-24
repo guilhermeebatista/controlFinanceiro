@@ -56,6 +56,12 @@ function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+// Devolve a string de um icone do sprite, para concatenar nos template
+// literals que montam tabelas via innerHTML. Decorativo: quem precisa de
+// rotulo acessivel poe aria-label no <button> que o envolve.
+const ico = (nome) =>
+  `<svg class="ico" aria-hidden="true"><use href="#i-${nome}"/></svg>`;
+
 /* (Re)constrói o seletor de anos preservando a seleção atual. */
 function fillYears(sel, years) {
   const atual = sel.value;

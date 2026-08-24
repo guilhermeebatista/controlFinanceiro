@@ -509,3 +509,13 @@ body:has(dialog[open]) { overflow: hidden; }
 
 body:not(.authed) .app-only { display: none; }
 body.authed #auth-screen { display: none; }
+
+/* ---- Icones (sprite SVG inline) ---- */
+.ico {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  display: inline-block;
+  vertical-align: -4px;
+}
+.btn .ico { width: 15px; height: 15px; vertical-align: -3px; }
