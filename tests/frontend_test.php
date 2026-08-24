@@ -131,4 +131,18 @@ afirmar(substr_count($nav[1], '<use href="#i-') === 9, 'os 9 itens do menu later
 afirmar((bool) preg_match('/<span id="user-name"><\/span>/', $html),
     '#user-name e um span vazio (icone fica fora dele)');
 
+// ---- app.js sem emoji ----
+
+afirmar(!preg_match($emoji, $js), 'app.js nao contem nenhum emoji');
+
+preg_match_all('/\bico\("([a-z-]+)"\)/', $js, $m);
+afirmar(count($m[1]) > 0, 'app.js usa o helper ico()');
+foreach (array_unique($m[1]) as $nome) {
+    afirmar(in_array('i-' . $nome, $definidos, true), "ico(\"{$nome}\") existe no sprite");
+}
+
+// O nome do usuario vai puro no textContent, sem prefixo decorativo.
+afirmar(!preg_match('/user-name"\)\.textContent\s*=\s*"[^"]*"\s*\+/', $js),
+    '#user-name recebe so o nome, sem prefixo concatenado');
+
 echo "\nTodos os testes de frontend passaram.\n";

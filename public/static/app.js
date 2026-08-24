@@ -661,8 +661,8 @@ function renderTx() {
       <td>${esc(tx.status)}</td>
       <td class="num ${cls}">${money(tx.saldo)}</td>
       <td class="row-actions">
-        <button class="btn small" data-edit>✏️</button>
-        <button class="btn small danger" data-del>🗑</button>
+        <button class="btn small" data-edit aria-label="Editar lançamento">${ico("pencil")}</button>
+        <button class="btn small danger" data-del aria-label="Excluir lançamento">${ico("trash")}</button>
       </td>`;
     tr.querySelector(".rowchk").addEventListener("change", updateBulkBar);
     tr.querySelector("[data-edit]").addEventListener("click", () =>
@@ -1035,8 +1035,8 @@ async function loadResource(key) {
   // cru vem do usuário e precisa ser escapado antes de ir para innerHTML.
   html += items.map((it) => "<tr>" + r.cols.map(([k, , f]) =>
     `<td>${f ? esc(f(it[k], it)) : esc(it[k] ?? "")}</td>`).join("") +
-    `<td class="row-actions"><button class="btn small" data-edit="${it.id}">✏️</button>
-     <button class="btn small danger" data-del="${it.id}">🗑</button></td></tr>`).join("");
+    `<td class="row-actions"><button class="btn small" data-edit="${it.id}" aria-label="Editar">${ico("pencil")}</button>
+     <button class="btn small danger" data-del="${it.id}" aria-label="Excluir">${ico("trash")}</button></td></tr>`).join("");
   html += "</tbody>";
   if (!items.length) html += `<caption class="muted">Nenhum registro — use “+ Adicionar”.</caption>`;
   table.innerHTML = html;
@@ -1155,8 +1155,8 @@ async function loadCategoriesTable() {
     <th class="num">Meta mês</th><th></th></tr></thead><tbody>`;
   html += filtered.map((c) => `<tr><td>${esc(c.classificacao)}</td><td>${esc(c.grupo)}</td><td>${esc(c.tipo)}</td>
     <td class="num">${c.meta_mes ? money(c.meta_mes) : "–"}</td>
-    <td class="row-actions"><button class="btn small" data-edit="${c.id}">✏️</button>
-    <button class="btn small danger" data-del="${c.id}">🗑</button></td></tr>`).join("");
+    <td class="row-actions"><button class="btn small" data-edit="${c.id}" aria-label="Editar classificação">${ico("pencil")}</button>
+    <button class="btn small danger" data-del="${c.id}" aria-label="Excluir classificação">${ico("trash")}</button></td></tr>`).join("");
   html += "</tbody>";
   table.innerHTML = html;
   table.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
@@ -1213,8 +1213,11 @@ $("#imp-btn").addEventListener("click", async () => {
       result.textContent = "Erro: " + (data.detail || "não foi possível importar.");
       return;
     }
-    result.textContent =
-      `✅ Importado: ${data.lancamentos} lançamentos, ${data.categorias_novas} categorias novas, ` +
+    // textContent nao aceita markup: monta o icone via innerHTML e escreve o
+    // texto no span, preservando o escape automatico dos valores.
+    result.innerHTML = ico("check") + '<span class="msg"></span>';
+    result.querySelector(".msg").textContent =
+      `Importado: ${data.lancamentos} lançamentos, ${data.categorias_novas} categorias novas, ` +
       `${data.projetos} projetos, ${data.investimentos} investimentos, ${data.bens} bens, ${data.dividas} dívidas.`;
     input.value = "";
     $("#imp-replace").checked = false;
@@ -1244,7 +1247,7 @@ $("#me-form").addEventListener("submit", async (e) => {
     method: "PUT",
     body: JSON.stringify({ nome: f.nome.value.trim(), email: f.email.value.trim() }),
   });
-  $("#user-name").textContent = "👤 " + data.nome;
+  $("#user-name").textContent = data.nome;
   $("#me-msg").textContent = "Perfil salvo.";
 });
 
@@ -1299,12 +1302,12 @@ async function loadAdminUsers() {
     <td class="num">${u.n_lancamentos}</td>
     <td>${dataHoraBR(u.criado_em)}</td>
     <td>${dataHoraBR(u.ultimo_login)}</td>
-    <td>${u.is_admin ? "✅" : "—"}</td>
+    <td>${u.is_admin ? ico("check") : "—"}</td>
     <td class="row-actions">
-      <button class="btn small" data-pw="${u.id}" title="Redefinir senha">🔑</button>
-      <button class="btn small" data-mfa="${u.id}" title="Resetar MFA">🔁</button>
-      <button class="btn small" data-flag="${u.id}" title="${u.is_admin ? "Rebaixar" : "Tornar admin"}">${u.is_admin ? "⬇️" : "⬆️"}</button>
-      <button class="btn small danger" data-del="${u.id}" title="Excluir conta"${u.eu ? " disabled" : ""}>🗑</button>
+      <button class="btn small" data-pw="${u.id}" title="Redefinir senha" aria-label="Redefinir senha">${ico("key")}</button>
+      <button class="btn small" data-mfa="${u.id}" title="Resetar MFA" aria-label="Resetar MFA">${ico("refresh")}</button>
+      <button class="btn small" data-flag="${u.id}" title="${u.is_admin ? "Rebaixar" : "Tornar admin"}" aria-label="${u.is_admin ? "Rebaixar" : "Tornar admin"}">${u.is_admin ? ico("arrow-down") : ico("arrow-up")}</button>
+      <button class="btn small danger" data-del="${u.id}" title="Excluir conta" aria-label="Excluir conta"${u.eu ? " disabled" : ""}>${ico("trash")}</button>
     </td></tr>`).join("");
   html += "</tbody>";
   table.innerHTML = html;
@@ -1540,7 +1543,7 @@ $("#logout-btn").addEventListener("click", async () => {
 });
 
 async function enterApp(usuario, isAdmin = false) {
-  $("#user-name").textContent = "👤 " + usuario;
+  $("#user-name").textContent = usuario;
   $("#tab-admin-btn").hidden = !isAdmin;
   document.body.classList.add("authed");
   ajustarTopbar();   // só agora a barra existe no layout (antes o shell está oculto)
