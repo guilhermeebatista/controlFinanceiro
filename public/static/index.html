@@ -12,9 +12,83 @@
 <script src="/static/vendor/qrcode.js"></script>
 </head>
 <body>
+<!-- Sprite de icones. O <use> clona o <symbol> numa shadow tree cujo pai e o
+     proprio elemento <use>, entao atributos de apresentacao aqui no <svg> nao
+     chegam ao clone. Por isso os valores de traco (fill, stroke, stroke-width
+     etc.) ficam na regra .ico em style.css: propriedades CSS herdaveis
+     atravessam a shadow tree a partir do site de uso, nao do site de
+     definicao. Cada uso vira <svg class="ico"><use href="#i-x"/></svg> e
+     herda a cor do texto do elemento pai via currentColor. -->
+<svg id="sprite" hidden aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-dashboard" viewBox="0 0 24 24">
+    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+    <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+  </symbol>
+  <symbol id="i-list" viewBox="0 0 24 24">
+    <path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>
+  </symbol>
+  <symbol id="i-users" viewBox="0 0 24 24">
+    <path d="M16 19.5V18a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1.5"/><circle cx="9" cy="7" r="3.5"/>
+    <path d="M22 19.5V18a4 4 0 0 0-3-3.87"/><path d="M15.5 3.6a4 4 0 0 1 0 7.75"/>
+  </symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24">
+    <path d="M3 3v17a1 1 0 0 0 1 1h17"/><path d="m7 15 4-4 3 3 5-6"/><path d="M15 8h4v4"/>
+  </symbol>
+  <symbol id="i-landmark" viewBox="0 0 24 24">
+    <path d="M3 21h18"/><path d="M4 10h16"/><path d="M12 3 21 8H3l9-5Z"/>
+    <path d="M6 10v11M10 10v11M14 10v11M18 10v11"/>
+  </symbol>
+  <symbol id="i-target" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 12h.01"/>
+  </symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24">
+    <path d="M3 12h5l2 3h4l2-3h5"/><path d="M5.5 5h13l2.5 7v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6l2.5-7Z"/>
+  </symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24">
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24">
+    <path d="M12 22s8-4 8-10V5.5l-8-3-8 3V12c0 6 8 10 8 10Z"/>
+  </symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24">
+    <path d="M3 6a2 2 0 0 1 2-2h12.5A1.5 1.5 0 0 1 19 5.5V8"/>
+    <path d="M3 6v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2H5a2 2 0 0 1-2-2Z"/>
+    <path d="M16.5 14h.01"/>
+  </symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24">
+    <rect x="2.5" y="4.5" width="19" height="15" rx="2"/>
+    <path d="m3 7 8.4 5.6a1 1 0 0 0 1.2 0L21 7"/>
+  </symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24">
+    <rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>
+  </symbol>
+  <symbol id="i-key" viewBox="0 0 24 24">
+    <circle cx="7.5" cy="15.5" r="3.5"/><path d="m10 13 8.5-8.5"/><path d="m16 7 2.5 2.5"/><path d="m19 4 2 2"/>
+  </symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24">
+    <path d="M4 20h4L18.5 9.5a2.83 2.83 0 0 0-4-4L4 16v4Z"/><path d="m14.5 6.5 3 3"/>
+  </symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24">
+    <path d="M4 7h16"/><path d="M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1Z"/>
+    <path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M10.5 11v6M13.5 11v6"/>
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m4.5 12.5 5 5 10-11"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24">
+    <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/>
+  </symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 20V4"/><path d="m5.5 10.5 6.5-6.5 6.5 6.5"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 4v16"/><path d="m5.5 13.5 6.5 6.5 6.5-6.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24">
+    <circle cx="12" cy="8" r="3.75"/><path d="M4.5 20.5v-1a5 5 0 0 1 5-5h5a5 5 0 0 1 5 5v1"/>
+  </symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+</svg>
 <div id="auth-screen">
   <div class="auth-card" id="auth-card">
-    <h1>💰 Minhas Contas</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-wallet"/></svg> Minhas Contas</h1>
     <p class="auth-tagline">Organize seus gastos pessoais e veja para onde vai o seu dinheiro.</p>
     <div class="auth-tabs">
       <button type="button" data-mode="login" class="active">Entrar</button>
@@ -30,7 +104,7 @@
     <p class="muted" id="au-hint"></p>
   </div>
   <div class="auth-card" id="verify-card" hidden>
-    <h1>📧 Confirme seu e-mail</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-mail"/></svg> Confirme seu e-mail</h1>
     <p class="auth-tagline">Enviamos um código de 6 dígitos para <strong id="verify-email"></strong>.</p>
     <form id="verify-form">
       <label>Código de ativação<input id="verify-codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label>
@@ -42,7 +116,7 @@
     </p>
   </div>
   <div class="auth-card" id="mfa-setup-card" hidden>
-    <h1>🔐 Proteja sua conta</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-lock"/></svg> Proteja sua conta</h1>
     <p class="auth-tagline">Escaneie o QR code com o Google Authenticator, Microsoft Authenticator ou similar.</p>
     <div id="mfa-qr" class="mfa-qr"></div>
     <p class="muted">Não consegue escanear? Digite manualmente: <code id="mfa-secret"></code></p>
@@ -53,13 +127,13 @@
     </form>
   </div>
   <div class="auth-card" id="mfa-backup-card" hidden>
-    <h1>🗝️ Códigos de backup</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-key"/></svg> Códigos de backup</h1>
     <p class="auth-tagline"><strong>Guarde estes 10 códigos em local seguro.</strong> Cada um funciona uma única vez, caso você perca o celular. Eles só aparecem aqui, agora.</p>
     <ul id="mfa-backup-list" class="mfa-backup-codes"></ul>
     <button type="button" class="btn primary" id="mfa-backup-ok">Já guardei, continuar</button>
   </div>
   <div class="auth-card" id="mfa-verify-card" hidden>
-    <h1>🔐 Código de segurança</h1>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-lock"/></svg> Código de segurança</h1>
     <p class="auth-tagline">Digite o código do seu aplicativo autenticador (ou um código de backup).</p>
     <form id="mfa-verify-form">
       <label>Código<input id="mfa-verify-codigo" inputmode="numeric" maxlength="10" autocomplete="one-time-code" required></label>
@@ -73,38 +147,39 @@
 <div id="sidebar-backdrop" hidden></div>
 <aside id="sidebar">
   <div class="side-brand">
-    <span class="side-ico">💰</span>
+    <svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg>
     <span class="side-label">Minhas Contas</span>
   </div>
   <nav id="tabs">
     <button data-tab="dashboard" class="active" title="Dashboard">
-      <span class="side-ico">📊</span><span class="side-label">Dashboard</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-dashboard"/></svg><span class="side-label">Dashboard</span></button>
     <button data-tab="lancamentos" title="Lançamentos">
-      <span class="side-ico">🧾</span><span class="side-label">Lançamentos</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-list"/></svg><span class="side-label">Lançamentos</span></button>
     <button data-tab="pessoas" title="Por Pessoa">
-      <span class="side-ico">👥</span><span class="side-label">Por Pessoa</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-users"/></svg><span class="side-label">Por Pessoa</span></button>
     <button data-tab="fluxo" title="Fluxo">
-      <span class="side-ico">📈</span><span class="side-label">Fluxo</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-trend"/></svg><span class="side-label">Fluxo</span></button>
     <button data-tab="patrimonio" title="Patrimônio">
-      <span class="side-ico">🏦</span><span class="side-label">Patrimônio</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-landmark"/></svg><span class="side-label">Patrimônio</span></button>
     <button data-tab="projetos" title="Projetos">
-      <span class="side-ico">🎯</span><span class="side-label">Projetos</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-target"/></svg><span class="side-label">Projetos</span></button>
     <button data-tab="registro" title="Registro">
-      <span class="side-ico">📥</span><span class="side-label">Registro</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-inbox"/></svg><span class="side-label">Registro</span></button>
     <button data-tab="configuracao" title="Configuração">
-      <span class="side-ico">⚙️</span><span class="side-label">Configuração</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-settings"/></svg><span class="side-label">Configuração</span></button>
     <button data-tab="admin" id="tab-admin-btn" title="Admin" hidden>
-      <span class="side-ico">🛡️</span><span class="side-label">Admin</span></button>
+      <svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg><span class="side-label">Admin</span></button>
   </nav>
 </aside>
 
 <div class="content">
 <header class="topbar">
   <button id="menu-toggle" class="menu-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar">
-    <span></span><span></span><span></span>
+    <svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg>
   </button>
   <span class="topbar-brand">Minhas Contas</span>
   <div class="userbox">
+    <svg class="ico ico-sm" aria-hidden="true"><use href="#i-user"/></svg>
     <span id="user-name"></span>
     <button class="btn small" id="logout-btn">Sair</button>
   </div>
@@ -156,14 +231,14 @@
       <label>Tipo <select id="l-tipo">
         <option value="">Todos</option><option>RECEITA</option><option>DESPESA</option>
       </select></label>
-      <button class="btn" id="l-clearfilters" hidden>✖ Limpar filtros de coluna</button>
-      <button class="btn primary" id="l-new">+ Novo lançamento</button>
+      <button class="btn" id="l-clearfilters" hidden><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg> Limpar filtros de coluna</button>
+      <button class="btn primary" id="l-new"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Novo lançamento</button>
     </div>
     <div class="card">
       <div class="bulkbar" id="l-bulkbar" hidden>
         <span id="l-selcount">0 selecionados</span>
-        <button class="btn primary" id="l-bulkedit">✏️ Alterar selecionados</button>
-        <button class="btn danger" id="l-bulkdel">🗑 Excluir selecionados</button>
+        <button class="btn primary" id="l-bulkedit"><svg class="ico" aria-hidden="true"><use href="#i-pencil"/></svg> Alterar selecionados</button>
+        <button class="btn danger" id="l-bulkdel"><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg> Excluir selecionados</button>
         <button class="btn" id="l-clearsel">Limpar seleção</button>
       </div>
       <table id="l-table" class="tabela-cheia">
@@ -235,15 +310,15 @@
   <section id="tab-patrimonio" class="tab">
     <div class="grid-2">
       <div class="card wide">
-        <h3>Investimentos <button class="btn small" data-add="investments">+ Adicionar</button></h3>
+        <h3>Investimentos <button class="btn small" data-add="investments"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="p-investments"></table></div>
       </div>
       <div class="card">
-        <h3>Bens <button class="btn small" data-add="assets">+ Adicionar</button></h3>
+        <h3>Bens <button class="btn small" data-add="assets"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="p-assets"></table></div>
       </div>
       <div class="card">
-        <h3>Dívidas <button class="btn small" data-add="debts">+ Adicionar</button></h3>
+        <h3>Dívidas <button class="btn small" data-add="debts"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="p-debts"></table></div>
       </div>
       <div class="card wide"><h3>Resumo</h3><div id="p-summary" class="tiles"></div></div>
@@ -253,7 +328,7 @@
   <!-- PROJETOS -->
   <section id="tab-projetos" class="tab">
     <div class="card">
-      <h3>Projetos <button class="btn small" data-add="projects">+ Adicionar</button></h3>
+      <h3>Projetos <button class="btn small" data-add="projects"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
       <div class="table-scroll"><table id="j-table"></table></div>
     </div>
     <div class="card">
@@ -267,11 +342,11 @@
   <section id="tab-registro" class="tab">
     <div class="grid-2">
       <div class="card">
-        <h3>Arquivos OFX importados <button class="btn small" data-add="ofx">+ Adicionar</button></h3>
+        <h3>Arquivos OFX importados <button class="btn small" data-add="ofx"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="r-ofx"></table></div>
       </div>
       <div class="card">
-        <h3>Pagamentos de cartão <button class="btn small" data-add="card-payments">+ Adicionar</button></h3>
+        <h3>Pagamentos de cartão <button class="btn small" data-add="card-payments"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="r-cards"></table></div>
       </div>
     </div>
@@ -329,15 +404,15 @@
         <ul id="mfa-regen-list" class="mfa-backup-codes" hidden></ul>
       </div>
       <div class="card">
-        <h3>Pessoas <button class="btn small" data-add="people">+ Adicionar</button></h3>
+        <h3>Pessoas <button class="btn small" data-add="people"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="s-people"></table></div>
       </div>
       <div class="card wide">
-        <h3>Instituições / Cartões <button class="btn small" data-add="institutions">+ Adicionar</button></h3>
+        <h3>Instituições / Cartões <button class="btn small" data-add="institutions"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="s-institutions"></table></div>
       </div>
       <div class="card wide">
-        <h3>Classificações <button class="btn small" id="s-newcat">+ Adicionar</button></h3>
+        <h3>Classificações <button class="btn small" id="s-newcat"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="filters">
           <input id="s-catq" type="search" placeholder="Filtrar classificações…">
         </div>

@@ -1,34 +1,36 @@
-/* ===== Tema BuilderTech (dark / roxo + ciano) ===== */
+/* ===== Tema preto & dourado =====
+   O dourado e racionado: so estado ativo, acao primaria, anel de foco e a
+   serie principal do grafico. Nunca em texto de corpo, nunca em gradiente,
+   nunca em sombra difusa. */
 :root {
-  --page: #0A0B0F;
-  --surface-1: #111318;   /* cards */
-  --surface-2: #1a1d27;   /* inputs, superfícies elevadas */
-  --text-primary: #E8E9EF;
-  --text-secondary: #8B8FA8;
-  --muted: #6b7089;
-  --border: rgba(255, 255, 255, 0.08);
+  --page: #0A0A0B;
+  --surface-1: #121213;   /* cards, menu lateral */
+  --surface-2: #1A1A1C;   /* inputs, cabecalho de tabela */
+  --surface-3: #232326;   /* hover */
+  --text-primary: #EDEDEF;
+  --text-secondary: #9A9AA2;
+  --muted: #7E7E86;   /* 4.65:1 sobre --surface-1 (WCAG AA p/ texto pequeno) */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
   --grid: rgba(255, 255, 255, 0.07);
-  --baseline: rgba(255, 255, 255, 0.14);
 
-  --primary: #6C63FF;
-  --primary-dark: #4f46e5;
-  --primary-soft: #a5a0ff;
-  --accent: #00D4FF;
-  --grad: linear-gradient(135deg, var(--primary), var(--accent));
-  --grad-btn: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  --glow: 0 0 40px rgba(108, 99, 255, 0.25);
+  --gold: #D4AF37;                          /* 9.4:1 sobre --page (WCAG AAA) */
+  --gold-soft: #E5C76B;
+  --gold-dim: rgba(212, 175, 55, 0.10);
+  --gold-border: rgba(212, 175, 55, 0.35);
+  --on-gold: #0A0A0B;                       /* 9.4:1 sobre --gold */
 
-  --radius: 16px;
-  --radius-sm: 10px;
+  --radius: 12px;
+  --radius-sm: 8px;
 
-  /* usados pelos gráficos (Chart.js lê via getComputedStyle) */
-  --series-1: #6C63FF;
-  --series-receita: #22c55e;
-  --series-despesa: #ff5f57;
-  --seq-450: #6C63FF;
-  --seq-300: #00D4FF;
-  --good: #22c55e;
-  --bad: #ff5f57;
+  /* usados pelos graficos (Chart.js le via getComputedStyle) */
+  --series-receita: #3FB950;
+  --series-despesa: #E5534B;
+  --seq-450: #D4AF37;
+  --seq-300: #8A7A45;   /* dourado dessaturado: 2o segmento do donut */
+  --accent: #8A7A45;
+  --good: #3FB950;
+  --bad: #E5534B;
 }
 
 * { box-sizing: border-box; }
@@ -40,20 +42,6 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
 }
-/* brilho suave de marca no topo da página */
-body::before {
-  content: "";
-  position: fixed;
-  top: -220px;
-  left: 50%;
-  width: 900px;
-  height: 500px;
-  transform: translateX(-50%);
-  background: radial-gradient(circle, rgba(108, 99, 255, 0.16) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
-
 /* ---- Autenticação ---- */
 #auth-screen {
   position: fixed;
@@ -72,7 +60,6 @@ body::before {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 32px;
-  box-shadow: var(--glow);
 }
 .auth-card h1 {
   margin: 0 0 6px;
@@ -102,7 +89,7 @@ body::before {
   font-weight: 500;
   transition: all .15s;
 }
-.auth-tabs button.active { background: var(--grad-btn); color: #fff; box-shadow: var(--glow); }
+.auth-tabs button.active { background: var(--surface-3); color: var(--text-primary); }
 #auth-form { display: flex; flex-direction: column; gap: 14px; }
 #auth-form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--text-secondary); }
 #auth-form input { padding: 11px 13px; }
@@ -110,8 +97,8 @@ body::before {
 .auth-error {
   margin: 0;
   color: #fff;
-  background: rgba(255, 95, 87, 0.15);
-  border: 1px solid rgba(255, 95, 87, 0.4);
+  background: rgba(229, 83, 75, 0.15);
+  border: 1px solid rgba(229, 83, 75, 0.4);
   padding: 9px 12px;
   border-radius: var(--radius-sm);
   font-size: 13px;
@@ -171,11 +158,12 @@ body::before {
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
-.side-ico { flex: 0 0 22px; font-size: 16px; text-align: center; line-height: 1; }
 .side-label { overflow: hidden; text-overflow: ellipsis; }
+.side-brand .ico { color: var(--gold); }
 
 #tabs { display: flex; flex-direction: column; gap: 3px; }
 #tabs button {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -194,7 +182,21 @@ body::before {
   transition: background .15s, color .15s;
 }
 #tabs button:hover { background: var(--surface-2); color: var(--text-primary); }
-#tabs button.active { background: var(--grad-btn); color: #fff; box-shadow: var(--glow); }
+/* Ativo: fundo discreto + barra dourada de 2px encostada na borda esquerda.
+   Fica no ::before posicionado para nao empurrar o conteudo nem mudar a
+   altura da linha — sem isso o item "pula" ao trocar de aba. */
+#tabs button.active { background: var(--gold-dim); color: var(--text-primary); }
+#tabs button.active .ico { color: var(--gold); }
+#tabs button.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--gold);
+}
 
 /* ---- Barra superior ---- */
 .topbar {
@@ -211,6 +213,7 @@ body::before {
 }
 .topbar-brand { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; display: none; }
 .userbox { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.userbox .ico { color: var(--text-secondary); }
 #user-name { font-size: 13px; color: var(--text-secondary); }
 
 /* Botão hambúrguer: só existe visualmente em tela estreita (ver media query). */
@@ -224,12 +227,9 @@ body::before {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   cursor: pointer;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
 }
-.menu-toggle span { width: 16px; height: 2px; background: var(--text-primary); border-radius: 2px; }
 
 /* Abaixo de 900px o menu lateral some por padrão e vira uma gaveta (drawer)
    acionada pelo hambúrguer — em vez da trilha só de ícones de antes, que
@@ -281,7 +281,26 @@ select, input, textarea {
   color: var(--text-primary);
   transition: border-color .15s;
 }
-select:focus, input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+select:focus, input:focus, textarea:focus { outline: none; border-color: var(--gold-border); }
+
+/* Anel de foco unico para tudo que e focavel. Antes so input/select mudavam
+   a borda no :focus, e botoes e abas nao tinham indicacao nenhuma —
+   navegar por teclado era as cegas. :focus-visible nao aparece no clique de
+   mouse, so na navegacao por teclado. */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Os controles de formulario precisam da propria regra: o
+   "select:focus, input:focus, textarea:focus { outline: none }" acima tem
+   especificidade (0,1,1) e venceria o :focus-visible generico, que e (0,1,0).
+   Especificidade e resolvida antes da ordem no arquivo. */
+select:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
 input[type="search"] { min-width: 240px; }
 input::placeholder { color: var(--muted); }
 
@@ -296,9 +315,9 @@ input::placeholder { color: var(--muted); }
   gap: 6px;
   transition: border-color .15s, box-shadow .15s;
 }
-.tile:hover { border-color: rgba(108, 99, 255, 0.4); box-shadow: 0 8px 40px rgba(108, 99, 255, 0.12); }
+.tile:hover { border-color: var(--border-strong); }
 .tile-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
-.tile-value { font-size: 27px; font-weight: 700; letter-spacing: -0.02em; }
+.tile-value { font-size: 27px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .tile-value.pos { color: var(--good); }
 .tile-value.neg { color: var(--bad); }
 
@@ -350,13 +369,13 @@ caption { color: var(--muted); font-size: 12px; padding: 12px; caption-side: bot
   flex-wrap: wrap;
   padding: 11px 14px;
   margin-bottom: 12px;
-  background: linear-gradient(135deg, rgba(108, 99, 255, 0.12), rgba(0, 212, 255, 0.05));
-  border: 1px solid rgba(108, 99, 255, 0.3);
+  background: var(--gold-dim);
+  border: 1px solid var(--gold-border);
   border-radius: var(--radius-sm);
 }
 .bulkbar span { font-size: 13px; font-weight: 600; }
 th.chk, td.chk { width: 34px; text-align: center; padding-right: 0; }
-.chk input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+.chk input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--gold); }
 
 .btn {
   font: inherit;
@@ -370,12 +389,12 @@ th.chk, td.chk { width: 34px; text-align: center; padding-right: 0; }
   cursor: pointer;
   transition: all .15s;
 }
-.btn:hover { border-color: rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); }
-.btn.primary { background: var(--grad-btn); border: none; color: #fff; }
-.btn.primary:hover { box-shadow: var(--glow); filter: brightness(1.08); }
+.btn:hover { border-color: var(--border-strong); background: var(--surface-3); }
+.btn.primary { background: var(--gold); border: 1px solid var(--gold); color: var(--on-gold); font-weight: 600; }
+.btn.primary:hover { background: var(--gold-soft); border-color: var(--gold-soft); }
 .btn.small { padding: 4px 11px; font-size: 12px; }
 .btn.danger { color: var(--bad); }
-.btn.danger:hover { border-color: rgba(255, 95, 87, 0.5); background: rgba(255, 95, 87, 0.08); }
+.btn.danger:hover { border-color: rgba(229, 83, 75, 0.5); background: rgba(229, 83, 75, 0.08); }
 .btn:disabled { opacity: .55; cursor: default; }
 .row-actions { display: flex; gap: 6px; }
 
@@ -392,7 +411,7 @@ dialog {
   width: min(520px, 92vw);
   max-height: 88vh;
   overflow-y: auto;
-  box-shadow: var(--glow);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
 }
 dialog h3 { margin-top: 0; font-weight: 700; }
 dialog::backdrop { background: rgba(0, 0, 0, .6); backdrop-filter: blur(2px); }
@@ -438,7 +457,7 @@ body:has(dialog[open]) { overflow: hidden; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.combo-list li:hover, .combo-list li.marcado { background: var(--primary); color: #fff; }
+.combo-list li:hover, .combo-list li.marcado { background: var(--gold-dim); color: var(--text-primary); }
 
 /* ---- Tabela de lançamentos: ocupa a largura toda, sem rolagem interna ---- */
 .tabela-cheia { width: 100%; table-layout: auto; }
@@ -452,7 +471,7 @@ body:has(dialog[open]) { overflow: hidden; }
 .tabela-cheia th.num .th-inner { justify-content: flex-end; }
 .th-sort { cursor: pointer; user-select: none; }
 .th-sort:hover { color: var(--text-primary); }
-.th-arrow { font-size: 10px; color: var(--primary-soft); }
+.th-arrow { font-size: 10px; color: var(--gold); }
 .th-filter {
   border: none;
   background: transparent;
@@ -464,7 +483,7 @@ body:has(dialog[open]) { overflow: hidden; }
   border-radius: 5px;
 }
 .th-filter:hover { background: rgba(255, 255, 255, .08); color: var(--text-primary); }
-.th-filter.ativo { color: #fff; background: var(--primary); }
+.th-filter.ativo { color: var(--on-gold); background: var(--gold); }
 
 .filtro-pop {
   position: absolute;
@@ -501,7 +520,7 @@ body:has(dialog[open]) { overflow: hidden; }
   text-overflow: ellipsis;
 }
 .filtro-itens label:hover { background: rgba(255, 255, 255, .05); }
-.filtro-itens input, .filtro-todos input { accent-color: var(--primary); flex: 0 0 auto; }
+.filtro-itens input, .filtro-todos input { accent-color: var(--gold); flex: 0 0 auto; }
 .filtro-acoes { display: flex; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 #s-form { grid-template-columns: 1fr; max-width: 320px; }
 #be-valuewrap { display: block; }
@@ -509,3 +528,27 @@ body:has(dialog[open]) { overflow: hidden; }
 
 body:not(.authed) .app-only { display: none; }
 body.authed #auth-screen { display: none; }
+
+/* ---- Icones (sprite SVG inline) ---- */
+/* O <use> clona o <symbol> numa shadow tree cujo pai e o <use>, entao
+   atributos de apresentacao no <svg id="sprite"> nunca chegam ao clone.
+   As propriedades de traco precisam estar aqui, como CSS herdavel, para
+   atravessar a shadow tree a partir do site de uso. */
+.ico {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  display: inline-block;
+  vertical-align: -4px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.btn .ico { width: 15px; height: 15px; vertical-align: -3px; }
+.ico-lg { width: 22px; height: 22px; vertical-align: -5px; }
+.ico-sm { width: 15px; height: 15px; }
+
+#imp-result { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+#imp-result .ico { color: var(--good); }
