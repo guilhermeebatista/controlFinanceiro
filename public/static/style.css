@@ -511,11 +511,20 @@ body:not(.authed) .app-only { display: none; }
 body.authed #auth-screen { display: none; }
 
 /* ---- Icones (sprite SVG inline) ---- */
+/* O <use> clona o <symbol> numa shadow tree cujo pai e o <use>, entao
+   atributos de apresentacao no <svg id="sprite"> nunca chegam ao clone.
+   As propriedades de traco precisam estar aqui, como CSS herdavel, para
+   atravessar a shadow tree a partir do site de uso. */
 .ico {
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
   display: inline-block;
   vertical-align: -4px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .btn .ico { width: 15px; height: 15px; vertical-align: -3px; }

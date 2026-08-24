@@ -40,11 +40,6 @@ foreach ($esperados as $id) {
 }
 afirmar(count($definidos) === count(array_unique($definidos)), 'nenhum id de symbol duplicado');
 
-// O <svg> do sprite carrega os atributos de traco que os symbols herdam.
-afirmar((bool) preg_match('/<svg[^>]*id="sprite"[^>]*stroke="currentColor"/', $html),
-    'sprite usa stroke="currentColor" (icone herda a cor do texto)');
-afirmar((bool) preg_match('/<svg[^>]*id="sprite"[^>]*stroke-width="1\.5"/', $html),
-    'sprite usa stroke-width 1.5');
 afirmar((bool) preg_match('/<svg[^>]*id="sprite"[^>]*\shidden/', $html),
     'sprite esta oculto (nao ocupa espaco no layout)');
 
@@ -53,7 +48,19 @@ afirmar((bool) preg_match('/<svg[^>]*id="sprite"[^>]*\shidden/', $html),
 afirmar(str_contains($js, 'const ico ='), 'app.js define o helper ico()');
 
 // ---- Classe .ico ----
+// O <use> clona o <symbol> numa shadow tree cujo pai e o proprio <use>, entao
+// atributos de apresentacao no <svg id="sprite"> nunca chegam ao clone. Os
+// valores de traco por isso precisam estar na regra .ico como CSS herdavel,
+// que atravessa a shadow tree a partir do site de uso (nao do de definicao).
 
-afirmar((bool) preg_match('/^\.ico\s*\{/m', $css), 'style.css define a classe .ico');
+afirmar((bool) preg_match('/\.ico\s*\{([^}]*)\}/s', $css, $mIco), 'style.css define a classe .ico');
+$regraIco = $mIco[1] ?? '';
+
+afirmar((bool) preg_match('/stroke:\s*currentColor/', $regraIco),
+    '.ico usa stroke: currentColor (icone herda a cor do texto)');
+afirmar((bool) preg_match('/fill:\s*none/', $regraIco),
+    '.ico usa fill: none');
+afirmar((bool) preg_match('/stroke-width:\s*1\.5/', $regraIco),
+    '.ico usa stroke-width 1.5');
 
 echo "\nTodos os testes de frontend passaram.\n";
