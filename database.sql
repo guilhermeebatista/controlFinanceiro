@@ -240,14 +240,24 @@ CREATE TABLE IF NOT EXISTS `projects` (
 -- ---------------------------------------------------------------------
 --  investments / assets / debts — aba PATRIMONIO
 -- ---------------------------------------------------------------------
+--  tipo/indexador/taxa descrevem o produto (ver src/Investimentos.php): é o
+--  que permite calcular quanto rende por mês. dt_aplicacao é o que define a
+--  faixa da tabela regressiva do IR, e valor_aplicado separa principal de
+--  rendimento — o imposto só morde a diferença entre os dois.
 CREATE TABLE IF NOT EXISTS `investments` (
-  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id`       INT UNSIGNED NOT NULL,
-  `instituicao`   VARCHAR(120) NOT NULL,
-  `fixa_var`      VARCHAR(40)  DEFAULT NULL,
-  `prazo_projeto` VARCHAR(40)  DEFAULT NULL,
-  `ativo`         VARCHAR(120) DEFAULT NULL,
-  `valor`         DOUBLE       NOT NULL DEFAULT 0,
+  `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`        INT UNSIGNED NOT NULL,
+  `instituicao`    VARCHAR(120) NOT NULL,
+  `fixa_var`       VARCHAR(40)  DEFAULT NULL,
+  `prazo_projeto`  VARCHAR(40)  DEFAULT NULL,
+  `ativo`          VARCHAR(120) DEFAULT NULL,
+  `valor`          DOUBLE       NOT NULL DEFAULT 0,
+  `tipo`           VARCHAR(40)  NOT NULL DEFAULT 'OUTRO',
+  `indexador`      VARCHAR(20)  NOT NULL DEFAULT 'NENHUM',
+  `taxa`           DOUBLE       NOT NULL DEFAULT 0,
+  `valor_aplicado` DOUBLE       NOT NULL DEFAULT 0,
+  `dt_aplicacao`   DATE         DEFAULT NULL,
+  `dt_vencimento`  DATE         DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `ix_investments_user` (`user_id`, `instituicao`),
   CONSTRAINT `fk_investments_user` FOREIGN KEY (`user_id`)

@@ -322,6 +322,21 @@
         <h3>Investimentos <button class="btn small" data-add="investments"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="p-investments"></table></div>
       </div>
+      <div class="card wide">
+        <h3><span><svg class="ico" aria-hidden="true"><use href="#i-trend"/></svg> Carteira, impostos e projeção</span>
+          <label class="inline-label">Projetar
+            <select id="p-meses">
+              <option value="6">6 meses</option>
+              <option value="12" selected>12 meses</option>
+              <option value="24">24 meses</option>
+              <option value="60">5 anos</option>
+            </select>
+          </label>
+        </h3>
+        <div id="p-carteira" class="tiles"></div>
+        <p class="muted" id="p-carteira-nota"></p>
+        <div class="table-scroll tall"><table id="p-projecao"></table></div>
+      </div>
       <div class="card">
         <h3>Bens <button class="btn small" data-add="assets"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg> Adicionar</button></h3>
         <div class="table-scroll"><table id="p-assets"></table></div>
@@ -397,6 +412,20 @@
           <label>Fator da reserva<input type="number" step="1" name="fator_reserva"></label>
           <button class="btn primary">Salvar</button>
         </form>
+      </div>
+      <div class="card">
+        <h3>Índices de mercado (% ao ano)</h3>
+        <p class="muted">São eles que dizem quanto cada investimento rende por mês. O sistema
+          funciona offline e não busca cotação sozinho: confira estes números quando o Copom
+          se reunir ou o IPCA sair.</p>
+        <form id="idx-form" class="form-grid">
+          <label>CDI<input type="number" step="0.01" name="taxa_cdi_anual"></label>
+          <label>Selic<input type="number" step="0.01" name="taxa_selic_anual"></label>
+          <label>IPCA<input type="number" step="0.01" name="taxa_ipca_anual"></label>
+          <label>TR<input type="number" step="0.01" name="taxa_tr_anual"></label>
+          <button class="btn primary">Salvar índices</button>
+        </form>
+        <p class="muted" id="idx-msg"></p>
       </div>
       <div class="card">
         <h3>Minha conta</h3>

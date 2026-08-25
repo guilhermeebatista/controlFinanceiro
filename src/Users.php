@@ -10,11 +10,12 @@ namespace MinhasContas;
 
 final class Users
 {
-    private const PADROES_SETTINGS = [
-        'receita_mensal'    => 0.0,
-        'custo_vida_mensal' => 0.0,
-        'fator_reserva'     => 6.0,
-    ];
+    /**
+     * Os padrões saem de SettingsController: assim uma conta nova nasce com
+     * exatamente os mesmos valores que a tela de parâmetros mostraria, e
+     * acrescentar um parâmetro é mexer num lugar só.
+     */
+    private const PADROES_SETTINGS = Controllers\SettingsController::PARAMETROS;
 
     /**
      * Cria a conta com parâmetros zerados e o plano de contas padrão, para a
@@ -34,11 +35,11 @@ final class Users
             );
             $uid = Database::ultimoId();
 
-            foreach (self::PADROES_SETTINGS as $chave => $valor) {
+            foreach (self::PADROES_SETTINGS as $chave => $p) {
                 Database::run(
                     'INSERT INTO settings (user_id, chave, valor) VALUES (?, ?, ?)
                      ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
-                    [$uid, $chave, $valor]
+                    [$uid, $chave, $p['padrao']]
                 );
             }
 

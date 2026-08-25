@@ -89,6 +89,10 @@ $dados['settings'] = [
     'receita_mensal'    => 6500.0,
     'custo_vida_mensal' => 4200.5,
     'fator_reserva'     => 6.0,
+    'taxa_cdi_anual'    => 14.9,
+    'taxa_selic_anual'  => 15.0,
+    'taxa_ipca_anual'   => 4.5,
+    'taxa_tr_anual'     => 1.0,
 ];
 $dados['categories'] = [
     ['categoria' => 'Alimentação', 'subcategoria' => 'Mercado', 'tipo' => 'DESPESA',
@@ -116,8 +120,18 @@ $dados['projects'] = [
 ];
 $dados['patrimonio'] = [
     'investimentos' => [
+        // Produto e indexador vão para a planilha pelo nome comercial
+        // ("Tesouro Selic") e voltam como a chave interna.
         ['instituicao' => 'XP', 'ativo' => 'Tesouro Selic 2029', 'fixa_var' => 'Fixa',
-         'prazo_projeto' => 'Reserva', 'valor' => 30000.0],
+         'prazo_projeto' => 'Reserva', 'valor' => 30000.0,
+         'tipo' => 'TESOURO_SELIC', 'indexador' => 'SELIC', 'taxa' => 0.05,
+         'valor_aplicado' => 28000.0, 'dt_aplicacao' => '2025-03-10',
+         'dt_vencimento' => '2029-03-01'],
+        ['instituicao' => 'Banco do Brasil', 'ativo' => 'CDB liquidez diária',
+         'fixa_var' => 'Fixa', 'prazo_projeto' => 'Curto', 'valor' => 12000.0,
+         'tipo' => 'CDB', 'indexador' => 'CDI', 'taxa' => 110.0,
+         'valor_aplicado' => 11000.0, 'dt_aplicacao' => '2026-01-05',
+         'dt_vencimento' => null],
     ],
     'bens' => [
         ['descricao' => 'Apartamento', 'valor' => 380000.0, 'saldo_devedor' => 120000.0],

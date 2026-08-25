@@ -40,7 +40,7 @@ promovida automaticamente enquanto ainda não houver nenhum admin no sistema.
 | LANCAMENTO | **Lançamentos** — CRUD completo, com busca, filtros por coluna, parcelamento e edição em lote |
 | — | **Por Pessoa** — quanto se deve e quanto se tem a receber de cada pessoa |
 | FLUXO | **Fluxo** — pivot mensal por tipo/categoria (com opção de detalhar subcategorias) |
-| PATRIMONIO | **Patrimônio** — investimentos, bens e dívidas + resumo de patrimônio líquido |
+| PATRIMONIO | **Patrimônio** — investimentos com imposto e rendimento mensal, bens e dívidas + resumo de patrimônio líquido |
 | PROJETOS | **Projetos** — projetos por prazo + necessidade de reservas (fator × custo de vida) |
 | REGISTRO | **Registro** — arquivos OFX importados e pagamentos de cartão |
 | CONFIGURACAO | **Configuração** — parâmetros, classificações, pessoas, instituições e a planilha (exportar/importar) |
@@ -54,6 +54,7 @@ public/          DocumentRoot — o único diretório servido pela web
   static/        interface: HTML, CSS, JS e Chart.js embarcado
 src/             código da aplicação (fora do alcance da web)
   Controllers/   um por área da API
+  Investimentos.php  produtos, tabelas de imposto e rentabilidade — fonte única
   Modelo.php     o layout da planilha — fonte única de exportação e importação
   Exporter.php   escreve o modelo (em branco ou com os dados da conta)
   Importer.php   lê o modelo e a planilha antiga "Controle Financ. Pessoal"
@@ -66,6 +67,22 @@ database.sql     schema completo do MySQL
 
 Sem Composer e sem `vendor/`: o projeto não tem dependência de terceiros no
 servidor.
+
+## Investimentos, imposto e rendimento
+
+Cada investimento tem um produto (CDB, LCI, Tesouro Selic, Fundo DI, Ações,
+FII, previdência...), um indexador (% do CDI, IPCA+, prefixado, Selic,
+poupança) e uma data de aplicação. A partir disso o sistema calcula quanto ele
+rende por mês, em que faixa da tabela regressiva do IR está e quanto sobraria
+no bolso se você resgatasse hoje — com IOF nos primeiros 30 dias, isenção de
+LCI/LCA/CRI/CRA/poupança e come-cotas de maio e novembro nos fundos.
+
+As taxas de mercado (CDI, Selic, IPCA, TR) ficam em **Configuração → Índices
+de mercado**, por conta: o sistema roda offline e não busca cotação sozinho,
+então os valores de fábrica são um ponto de partida — **confira e atualize**.
+
+Regras, limites do cálculo e onde mexer quando a lei mudar estão em
+[docs/investimentos.md](docs/investimentos.md).
 
 ## Planilha: exportar e importar
 
@@ -121,9 +138,10 @@ docker compose exec app php bin/migrate.php
 Os testes não precisam de banco nem de servidor — rodam com o PHP do container:
 
 ```bash
-docker compose exec app php tests/modelo_test.php     # planilha: ida e volta
-docker compose exec app php tests/frontend_test.php   # invariantes da interface
-docker compose exec app php tests/mfa_test.php        # TOTP e códigos de backup
+docker compose exec app php tests/investimentos_test.php  # imposto e rendimento
+docker compose exec app php tests/modelo_test.php         # planilha: ida e volta
+docker compose exec app php tests/frontend_test.php       # invariantes da interface
+docker compose exec app php tests/mfa_test.php            # TOTP e códigos de backup
 ```
 
 Para ver a mensagem de erro real na resposta HTTP, defina `APP_ENV=development`

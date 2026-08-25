@@ -270,4 +270,30 @@ afirmar(str_contains($mLinkBtn[1] ?? '', 'text-decoration: none'),
 afirmar((bool) preg_match('/id="imp-file"[^>]*accept="\.xlsx,\.xlsm"/', $html),
     'o campo de importacao aceita .xlsx e .xlsm');
 
+// ---- Investimentos: carteira, impostos e indices ----
+
+foreach (['p-carteira', 'p-carteira-nota', 'p-projecao', 'p-meses'] as $id) {
+    afirmar(str_contains($html, 'id="' . $id . '"'), "a aba Patrimonio tem #{$id}");
+}
+foreach (['taxa_cdi_anual', 'taxa_selic_anual', 'taxa_ipca_anual', 'taxa_tr_anual'] as $campo) {
+    afirmar((bool) preg_match('/<input[^>]*name="' . $campo . '"/', $html),
+        "o formulario de indices tem o campo {$campo}");
+}
+afirmar(str_contains($html, 'id="idx-form"'), 'existe o formulario de indices de mercado');
+
+// A regra de imposto mora em src/Investimentos.php e em lugar nenhum mais.
+// Se uma aliquota aparecer no JS, existem duas fontes de verdade e uma delas
+// vai ficar para tras na proxima mudanca de lei.
+foreach (['0.225', '0.175', '22,5%', '17,5%'] as $aliquota) {
+    afirmar(!str_contains($js, $aliquota),
+        "app.js nao tem a aliquota {$aliquota} embutida (a tabela de IR e do backend)");
+}
+afirmar(str_contains($js, 'const pct ='), 'app.js define o helper pct() para formatar fracao como %');
+afirmar(str_contains($js, '/api/investments/summary'), 'app.js busca o resumo calculado da carteira');
+
+afirmar((bool) preg_match('/^\.hint\s*\{/m', $css),
+    'style.css define .hint (a linha de ajuda dos campos do formulario)');
+afirmar((bool) preg_match('/^\.inline-label\s*\{/m', $css),
+    'style.css define .inline-label (o seletor de meses dentro do titulo do card)');
+
 echo "\nTodos os testes de frontend passaram.\n";

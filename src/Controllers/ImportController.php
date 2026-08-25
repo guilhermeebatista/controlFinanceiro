@@ -13,6 +13,7 @@ use MinhasContas\Config;
 use MinhasContas\Database;
 use MinhasContas\Http;
 use MinhasContas\Importer;
+use MinhasContas\Investimentos;
 
 final class ImportController
 {
@@ -266,12 +267,25 @@ final class ImportController
         $pat = $dados['patrimonio'] ?? ['investimentos' => [], 'bens' => [], 'dividas' => []];
 
         foreach ($pat['investimentos'] ?? [] as $inv) {
-            $inv += ['fixa_var' => null, 'prazo_projeto' => null, 'ativo' => null, 'valor' => 0];
+            $inv += [
+                'fixa_var' => null, 'prazo_projeto' => null, 'ativo' => null, 'valor' => 0,
+                'tipo' => null, 'indexador' => null, 'taxa' => 0,
+                'valor_aplicado' => 0, 'dt_aplicacao' => null, 'dt_vencimento' => null,
+            ];
+            // Mesma normalização do cadastro pela tela: a planilha aceita
+            // "Tesouro Selic" e "TESOURO_SELIC", e o indexador precisa fazer
+            // sentido para o produto.
+            $inv = Investimentos::normalizarCampos($inv);
+
             Database::run(
-                'INSERT INTO investments (user_id, instituicao, fixa_var, prazo_projeto, ativo, valor)
-                 VALUES (?, ?, ?, ?, ?, ?)',
+                'INSERT INTO investments
+                   (user_id, instituicao, fixa_var, prazo_projeto, ativo, valor,
+                    tipo, indexador, taxa, valor_aplicado, dt_aplicacao, dt_vencimento)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [$uid, $inv['instituicao'], $inv['fixa_var'], $inv['prazo_projeto'],
-                 $inv['ativo'], (float) $inv['valor']]
+                 $inv['ativo'], (float) $inv['valor'],
+                 $inv['tipo'], $inv['indexador'], (float) $inv['taxa'],
+                 (float) $inv['valor_aplicado'], $inv['dt_aplicacao'], $inv['dt_vencimento']]
             );
         }
         foreach ($pat['bens'] ?? [] as $b) {
