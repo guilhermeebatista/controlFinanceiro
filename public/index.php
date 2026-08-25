@@ -17,6 +17,7 @@ use MinhasContas\Controllers\AdminController;
 use MinhasContas\Controllers\AuthController;
 use MinhasContas\Controllers\CategoryController;
 use MinhasContas\Controllers\DashboardController;
+use MinhasContas\Controllers\ExportController;
 use MinhasContas\Controllers\ImportController;
 use MinhasContas\Controllers\MfaController;
 use MinhasContas\Controllers\SettingsController;
@@ -114,8 +115,10 @@ function registrarRotas(): void
     Router::get('/api/settings', SettingsController::listar(...));
     Router::put('/api/settings', SettingsController::salvar(...));
 
-    // -------------------------------------------------------- importação
+    // ------------------------------------------- importação e exportação
     Router::post('/api/import', ImportController::importar(...));
+    Router::get('/api/export/modelo', ExportController::modelo(...));
+    Router::get('/api/export', ExportController::dados(...));
 
     // ------------------------------------------------------- CRUD simples
     // O segundo argumento é a chave do registro em CrudController; o nome real

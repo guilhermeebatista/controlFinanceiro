@@ -99,7 +99,16 @@ final class ImportController
     public static function gravar(int $uid, array $dados, bool $substituir): array
     {
         if ($substituir) {
+            // Tudo o que a planilha traz e que não tem chave para casar com o
+            // que já existe. Sem isto, reimportar o próprio backup duplicaria
+            // projetos e patrimônio a cada tentativa. Classificações,
+            // instituições e pessoas ficam: são cadastros com nome único, que
+            // a importação atualiza em vez de repetir.
             Database::run('DELETE FROM transactions WHERE user_id = ?', [$uid]);
+            Database::run('DELETE FROM projects     WHERE user_id = ?', [$uid]);
+            Database::run('DELETE FROM investments  WHERE user_id = ?', [$uid]);
+            Database::run('DELETE FROM assets       WHERE user_id = ?', [$uid]);
+            Database::run('DELETE FROM debts        WHERE user_id = ?', [$uid]);
         }
 
         /** @var array<string, float> $settings */
@@ -207,6 +216,42 @@ final class ImportController
             );
         }
 
+        // As abas de cadastro do modelo novo vêm depois das derivadas dos
+        // lançamentos: o que a pessoa escreveu explicitamente prevalece sobre
+        // o "Conta" que o laço acima chuta.
+        /** @var list<array<string, mixed>> $listaPessoas */
+        $listaPessoas = $dados['people'] ?? [];
+        foreach ($listaPessoas as $p) {
+            $nome = (string) ($p['nome'] ?? '');
+            if ($nome === '') {
+                continue;
+            }
+            Database::run('INSERT IGNORE INTO people (user_id, nome) VALUES (?, ?)', [$uid, $nome]);
+            $pessoas[$nome] = true;
+        }
+
+        /** @var list<array<string, mixed>> $listaInstituicoes */
+        $listaInstituicoes = $dados['institutions'] ?? [];
+        foreach ($listaInstituicoes as $i) {
+            $nome = (string) ($i['nome'] ?? '');
+            if ($nome === '') {
+                continue;
+            }
+            $i += ['tipo' => null, 'saldo_inicial' => 0.0, 'descricao' => null];
+            // COALESCE e não VALUES() direto: coluna em branco na planilha não
+            // pode apagar o que já estava cadastrado na conta.
+            Database::run(
+                'INSERT INTO institutions (user_id, nome, tipo, saldo_inicial, descricao)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                   tipo          = COALESCE(VALUES(tipo), tipo),
+                   saldo_inicial = VALUES(saldo_inicial),
+                   descricao     = COALESCE(VALUES(descricao), descricao)',
+                [$uid, $nome, $i['tipo'], (float) $i['saldo_inicial'], $i['descricao']]
+            );
+            $instituicoes[$nome] = true;
+        }
+
         /** @var list<array<string, mixed>> $projetos */
         $projetos = $dados['projects'] ?? [];
         foreach ($projetos as $p) {
@@ -253,6 +298,8 @@ final class ImportController
             'investimentos'    => count($pat['investimentos'] ?? []),
             'bens'             => count($pat['bens'] ?? []),
             'dividas'          => count($pat['dividas'] ?? []),
+            'pessoas'          => count($pessoas),
+            'instituicoes'     => count($instituicoes),
         ];
     }
 }
