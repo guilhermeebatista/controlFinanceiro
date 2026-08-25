@@ -54,6 +54,22 @@ final class Modelo
             'titulo' => 'Fator da reserva',
             'ajuda'  => 'Quantos meses de custo de vida a reserva de emergência precisa cobrir (ex.: 6).',
         ],
+        'taxa_cdi_anual' => [
+            'titulo' => 'CDI (% ao ano)',
+            'ajuda'  => 'Usado para calcular quanto rendem os investimentos atrelados ao CDI.',
+        ],
+        'taxa_selic_anual' => [
+            'titulo' => 'Selic (% ao ano)',
+            'ajuda'  => 'Usada no Tesouro Selic e na regra da poupança.',
+        ],
+        'taxa_ipca_anual' => [
+            'titulo' => 'IPCA (% ao ano)',
+            'ajuda'  => 'Usado nos papéis IPCA+.',
+        ],
+        'taxa_tr_anual' => [
+            'titulo' => 'TR (% ao ano)',
+            'ajuda'  => 'Entra na conta da poupança.',
+        ],
     ];
 
     /**
@@ -210,7 +226,49 @@ final class Modelo
                 [
                     'campo' => 'ativo', 'titulo' => 'Ativo', 'tipo' => 'texto',
                     'max' => 120, 'larg' => 24,
-                    'ajuda' => 'Ex.: Tesouro Selic 2029, CDB, ações.',
+                    'ajuda' => 'Ex.: Tesouro Selic 2029, CDB do banco X, PETR4.',
+                ],
+                [
+                    'campo' => 'tipo', 'titulo' => 'Produto', 'tipo' => 'texto',
+                    'max' => 40, 'larg' => 22, 'saida' => [Investimentos::class, 'nomeDoTipo'],
+                    'ajuda' => 'CDB, LCI, LCA, Tesouro Selic, Tesouro IPCA+, Poupança, Fundo DI,'
+                        . ' Ações, FII, Previdência... É o que define o imposto.',
+                ],
+                [
+                    'campo' => 'indexador', 'titulo' => 'Indexador', 'tipo' => 'texto',
+                    'max' => 20, 'larg' => 16,
+                    'aliases' => ['Como rende'],
+                    'ajuda' => 'CDI, SELIC, IPCA, PREFIXADO, POUPANCA ou NENHUM.',
+                ],
+                [
+                    'campo' => 'taxa', 'titulo' => 'Taxa', 'tipo' => 'numero',
+                    'padrao' => 0.0, 'larg' => 12,
+                    'aliases' => ['Rentabilidade'],
+                    'ajuda' => 'Depende do indexador: 110 (% do CDI), 6 (IPCA + 6% a.a.),'
+                        . ' 13,5 (prefixado a.a.), 0,05 (Selic + 0,05% a.a.).',
+                ],
+                [
+                    'campo' => 'valor_aplicado', 'titulo' => 'Valor aplicado', 'tipo' => 'numero',
+                    'padrao' => 0.0, 'larg' => 16, 'estilo' => 'dinheiro',
+                    'aliases' => ['Principal', 'Aplicado'],
+                    'ajuda' => 'Quanto entrou. O IR só incide sobre a diferença para o valor atual.',
+                ],
+                [
+                    'campo' => 'valor', 'titulo' => 'Valor', 'tipo' => 'numero',
+                    'padrao' => 0.0, 'larg' => 14, 'estilo' => 'dinheiro',
+                    'aliases' => ['Valor atual', 'Saldo'],
+                    'ajuda' => 'Saldo de hoje.',
+                ],
+                [
+                    'campo' => 'dt_aplicacao', 'titulo' => 'Data da aplicação', 'tipo' => 'data',
+                    'larg' => 18,
+                    'aliases' => ['Aplicação', 'Data de aplicação'],
+                    'ajuda' => 'DD/MM/AAAA. É o que define a faixa da tabela regressiva do IR.',
+                ],
+                [
+                    'campo' => 'dt_vencimento', 'titulo' => 'Vencimento', 'tipo' => 'data',
+                    'larg' => 16,
+                    'ajuda' => 'Opcional, para os papéis que têm prazo.',
                 ],
                 [
                     'campo' => 'fixa_var', 'titulo' => 'Renda', 'tipo' => 'texto',
@@ -223,11 +281,6 @@ final class Modelo
                     'max' => 40, 'larg' => 20,
                     'aliases' => ['Prazo', 'Projeto'],
                     'ajuda' => 'Para quando é esse dinheiro, ou a que projeto ele pertence.',
-                ],
-                [
-                    'campo' => 'valor', 'titulo' => 'Valor', 'tipo' => 'numero',
-                    'padrao' => 0.0, 'larg' => 14, 'estilo' => 'dinheiro',
-                    'ajuda' => 'Saldo atual.',
                 ],
             ],
         ],
@@ -370,7 +423,7 @@ final class Modelo
             'transactions' => array_map(self::completarClassificacao(...), $lidas['transactions']),
             'projects'     => $lidas['projects'],
             'patrimonio'   => [
-                'investimentos' => $lidas['investimentos'],
+                'investimentos' => array_map(self::completarInvestimento(...), $lidas['investimentos']),
                 'bens'          => $lidas['bens'],
                 'dividas'       => $lidas['dividas'],
             ],
@@ -556,6 +609,27 @@ final class Modelo
         $item['classificacao'] = Categories::montarClassificacao(
             (string) $item['categoria'],
             $sub !== null ? (string) $sub : null
+        );
+        return $item;
+    }
+
+    /**
+     * O produto e o indexador viram as chaves internas ainda na leitura.
+     *
+     * A planilha mostra "Tesouro Selic" e aceita também "TESOURO_SELIC" ou
+     * "tesouro selic"; daqui para dentro existe uma forma só. É a mesma ideia
+     * da classificação derivada dos lançamentos.
+     *
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private static function completarInvestimento(array $item): array
+    {
+        $tipo = Investimentos::normalizarTipo((string) ($item['tipo'] ?? ''));
+        $item['tipo']      = $tipo;
+        $item['indexador'] = Investimentos::normalizarIndexadorDoTipo(
+            $tipo,
+            (string) ($item['indexador'] ?? '')
         );
         return $item;
     }

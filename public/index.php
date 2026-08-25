@@ -19,6 +19,7 @@ use MinhasContas\Controllers\CategoryController;
 use MinhasContas\Controllers\DashboardController;
 use MinhasContas\Controllers\ExportController;
 use MinhasContas\Controllers\ImportController;
+use MinhasContas\Controllers\InvestmentController;
 use MinhasContas\Controllers\MfaController;
 use MinhasContas\Controllers\SettingsController;
 use MinhasContas\Controllers\TransactionController;
@@ -104,6 +105,9 @@ function registrarRotas(): void
     Router::get('/api/fluxo', DashboardController::fluxo(...));
     // Antes de /api/projects/{id}: senão "summary" tentaria casar com o id.
     Router::get('/api/projects/summary', DashboardController::resumoProjetos(...));
+    // Carteira: totais, imposto e projeção. O CRUD de investimentos continua
+    // no registro genérico, mais abaixo.
+    Router::get('/api/investments/summary', InvestmentController::resumo(...));
 
     // ---------------------------------------------------- classificações
     Router::get('/api/categories', CategoryController::listar(...));

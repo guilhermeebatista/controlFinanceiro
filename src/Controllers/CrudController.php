@@ -18,6 +18,7 @@ use MinhasContas\Auth;
 use MinhasContas\Cast;
 use MinhasContas\Database;
 use MinhasContas\Http;
+use MinhasContas\Investimentos;
 use PDOException;
 
 final class CrudController
@@ -30,7 +31,14 @@ final class CrudController
      *   inteiro?      inteiro opcional
      *   data?         data ISO opcional
      *
-     * @var array<string, array{tabela:string, ordem:string, rotulo:string, campos:array<string,string>, unico?:string}>
+     * Dois ganchos opcionais, ambos declarados aqui e nunca vindos da
+     * requisição:
+     *   normalizar    ajusta os valores gravados quando um campo depende de
+     *                 outro (o indexador precisa fazer sentido para o tipo)
+     *   enriquecer    acrescenta campos calculados na listagem, que existem
+     *                 na resposta mas não no banco
+     *
+     * @var array<string, array{tabela:string, ordem:string, rotulo:string, campos:array<string,string>, unico?:string, normalizar?:callable, enriquecer?:callable}>
      */
     private const RECURSOS = [
         'projects' => [
@@ -54,7 +62,17 @@ final class CrudController
                 'prazo_projeto' => 'texto?:40',
                 'ativo'         => 'texto?:120',
                 'valor'         => 'numero',
+                // Produto, rentabilidade e datas: é o que permite calcular
+                // imposto e rendimento mensal (ver src/Investimentos.php).
+                'tipo'           => 'texto?:40',
+                'indexador'      => 'texto?:20',
+                'taxa'           => 'numero',
+                'valor_aplicado' => 'numero',
+                'dt_aplicacao'   => 'data?',
+                'dt_vencimento'  => 'data?',
             ],
+            'normalizar' => [Investimentos::class, 'normalizarCampos'],
+            'enriquecer' => [Investimentos::class, 'enriquecerLista'],
         ],
         'assets' => [
             'tabela' => 'assets',
@@ -133,14 +151,22 @@ final class CrudController
         );
 
         [$floats, $ints] = self::colunasNumericas($r['campos']);
-        Http::json(['items' => Cast::linhas($itens, $floats, [...$ints, 'id', 'user_id'])]);
+        $itens = Cast::linhas($itens, $floats, [...$ints, 'id', 'user_id']);
+
+        // Depois do Cast: os campos calculados trabalham em cima de float, e
+        // não da string que o driver poderia devolver.
+        if (isset($r['enriquecer'])) {
+            $itens = ($r['enriquecer'])($itens, $uid);
+        }
+
+        Http::json(['items' => $itens]);
     }
 
     public static function criar(string $recurso): void
     {
         $uid = Auth::exigirUsuario();
         $r = self::recurso($recurso);
-        $valores = self::lerCampos($r['campos']);
+        $valores = self::lerCampos($r);
 
         $colunas = array_keys($valores);
         $sql = sprintf(
@@ -164,7 +190,7 @@ final class CrudController
     {
         $uid = Auth::exigirUsuario();
         $r = self::recurso($recurso);
-        $valores = self::lerCampos($r['campos']);
+        $valores = self::lerCampos($r);
 
         $sets = implode(', ', array_map(static fn(string $c): string => "{$c} = ?", array_keys($valores)));
         $sql = "UPDATE {$r['tabela']} SET {$sets} WHERE id = ? AND user_id = ?";
@@ -216,15 +242,16 @@ final class CrudController
     }
 
     /**
-     * Lê do corpo apenas os campos declarados, com o tipo declarado.
+     * Lê do corpo apenas os campos declarados, com o tipo declarado, e passa
+     * o resultado pelo normalizador do recurso, se houver.
      *
-     * @param array<string, string> $campos
+     * @param array{campos:array<string,string>, normalizar?:callable} $r
      * @return array<string, mixed>
      */
-    private static function lerCampos(array $campos): array
+    private static function lerCampos(array $r): array
     {
         $valores = [];
-        foreach ($campos as $nome => $spec) {
+        foreach ($r['campos'] as $nome => $spec) {
             $valores[$nome] = match (true) {
                 $spec === 'numero'             => Http::numero($nome),
                 $spec === 'inteiro?'           => Http::inteiroOuNulo($nome, -1_000_000_000, 1_000_000_000),
@@ -234,7 +261,8 @@ final class CrudController
                 default => throw new \LogicException("Spec de campo desconhecida: {$spec}"),
             };
         }
-        return $valores;
+
+        return isset($r['normalizar']) ? ($r['normalizar'])($valores) : $valores;
     }
 
     /**

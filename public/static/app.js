@@ -6,6 +6,12 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 
 const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const money = (v) => fmt.format(v || 0);
+
+/* Fração -> porcentagem legível: 0.012739 vira "1,27%". A API devolve sempre
+   fração; a conversão mora só aqui para não haver dois lugares multiplicando
+   por 100. */
+const pct = (v, casas = 2) =>
+  ((v || 0) * 100).toFixed(casas).replace(".", ",") + "%";
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const mesLabel = (ym) => {
   const [y, m] = ym.split("-");
@@ -245,8 +251,20 @@ function openForm(title, fields, values, onSave) {
     const v = values?.[f.name];
     if (v !== undefined && v !== null) input.value = v;
     label.append(input);
+    // Linha de ajuda sob o campo. Nasce vazia quando o texto é dinâmico:
+    // quem preenche depois é o wire() do campo que manda nela.
+    if (f.hint !== undefined) {
+      const hint = document.createElement("small");
+      hint.className = "hint";
+      hint.dataset.hint = f.name;
+      hint.textContent = f.hint;
+      label.append(hint);
+    }
     box.append(label);
   }
+  // Depois de tudo montado: um campo só consegue reagir a outro quando os
+  // dois já existem no DOM.
+  for (const f of fields) f.wire?.(box, values);
   modalSubmit = () => {
     const data = {};
     for (const f of fields) {
@@ -941,17 +959,108 @@ async function loadPessoas() {
 loaders.pessoas = loadPessoas;
 
 /* ---------- CRUD genérico ---------- */
+/* ---------- Investimentos: catálogo de produtos ----------
+   O catálogo (que produtos existem, como cada um rende, que imposto paga)
+   mora em src/Investimentos.php e chega junto com o resumo da carteira. Aqui
+   ele só é guardado para montar o formulário. */
+let cachedCatalogo = null;
+
+async function garantirCatalogo() {
+  if (!cachedCatalogo) cachedCatalogo = (await api("/api/investments/summary?meses=1")).catalogo;
+  return cachedCatalogo;
+}
+
+/* Escreve a linha de ajuda de um campo do formulário. */
+function dica(box, campo, texto) {
+  const el = box.querySelector(`[data-hint="${campo}"]`);
+  if (el) el.textContent = texto;
+}
+
+/* Produto, indexador e taxa andam juntos: Tesouro Selic não é prefixado, e
+   "% do CDI" e "IPCA + taxa" querem números de grandezas diferentes no mesmo
+   campo. Este wire mantém as três caixas coerentes enquanto se digita. */
+function wireInvestimento(box, valores) {
+  const tipoEl = box.querySelector('[name="tipo"]');
+  const idxEl = box.querySelector('[name="indexador"]');
+  const taxaEl = box.querySelector('[name="taxa"]');
+  const todos = [...idxEl.options].map((o) => [o.value, o.textContent]);
+
+  const aoTrocarIndexador = () => {
+    const i = cachedCatalogo.indexadores.find((x) => x.chave === idxEl.value);
+    dica(box, "indexador", i ? i.ajuda : "");
+    taxaEl.disabled = !i?.usa_taxa;
+    dica(box, "taxa", i?.usa_taxa ? `Em ${i.unidade}.` : "Este rendimento não usa taxa.");
+  };
+
+  const aoTrocarTipo = (usarPadrao) => {
+    const t = cachedCatalogo.tipos.find((x) => x.chave === tipoEl.value);
+    if (!t) return;
+    const selos = [
+      t.isento_ir ? "Isento de IR" : null,
+      t.come_cotas ? "tem come-cotas" : null,
+      t.iof ? "IOF antes de 30 dias" : null,
+      t.fgc ? "coberto pelo FGC" : null,
+    ].filter(Boolean);
+    dica(box, "tipo", `${t.nota}${selos.length ? " (" + selos.join(", ") + ")" : ""}`);
+
+    const anterior = idxEl.value;
+    idxEl.innerHTML = "";
+    todos.filter(([v]) => t.indexadores.includes(v))
+      .forEach(([v, l]) => idxEl.append(new Option(l, v)));
+    idxEl.value = !usarPadrao && t.indexadores.includes(anterior) ? anterior : t.indexador_padrao;
+    // Só sobrescreve a taxa quando o produto muda: abrir o formulário para
+    // editar não pode apagar a taxa que já estava gravada.
+    if (usarPadrao) taxaEl.value = t.taxa_padrao;
+    aoTrocarIndexador();
+  };
+
+  tipoEl.addEventListener("change", () => aoTrocarTipo(true));
+  idxEl.addEventListener("change", aoTrocarIndexador);
+  // Cadastro novo (ainda sem taxa gravada) já nasce com o padrão do produto.
+  aoTrocarTipo(valores?.taxa === undefined || valores?.taxa === null);
+}
+
+function investmentFields() {
+  const c = cachedCatalogo;
+  return [
+    { name: "tipo", label: "Produto", type: "select", required: true, full: true, hint: "",
+      options: c.tipos.map((t) => [t.chave, `${t.nome} — ${t.classe}`]), wire: wireInvestimento },
+    { name: "indexador", label: "Como rende", type: "select", hint: "",
+      options: c.indexadores.map((i) => [i.chave, i.nome]) },
+    { name: "taxa", label: "Taxa", type: "number", step: "0.01", hint: "" },
+    { name: "valor_aplicado", label: "Valor aplicado (R$)", type: "number",
+      hint: "O principal. O IR só morde a diferença para o valor atual." },
+    { name: "valor", label: "Valor atual (R$)", type: "number", required: true,
+      hint: "O saldo de hoje." },
+    { name: "dt_aplicacao", label: "Data da aplicação", type: "date",
+      hint: "Define a faixa da tabela regressiva do IR." },
+    { name: "dt_vencimento", label: "Vencimento", type: "date", hint: "Opcional." },
+    { name: "instituicao", label: "Instituição", required: true },
+    { name: "ativo", label: "Ativo" },
+    { name: "fixa_var", label: "Fixa / Variável", type: "select", options: ["", "Fixa", "Variável"] },
+    { name: "prazo_projeto", label: "Prazo/Projeto", type: "select",
+      options: ["", "RESERVA", "CURTO", "MÉDIO", "LONGO", "APOSENTADORIA"] },
+  ];
+}
+
 const RESOURCES = {
   investments: {
     title: "Investimento", path: "/api/investments",
-    fields: [
-      { name: "instituicao", label: "Instituição", required: true },
-      { name: "fixa_var", label: "Fixa / Variável", type: "select", options: ["", "Fixa", "Variável"] },
-      { name: "prazo_projeto", label: "Prazo/Projeto", type: "select", options: ["", "RESERVA", "CURTO", "MÉDIO", "LONGO", "APOSENTADORIA"] },
-      { name: "ativo", label: "Ativo" },
-      { name: "valor", label: "Valor (R$)", type: "number" },
+    prepare: garantirCatalogo,
+    fields: investmentFields,
+    // Aplicação de hoje é o caso comum, e a data é o que define a faixa do IR.
+    defaults: () => ({ tipo: "CDB", dt_aplicacao: new Date().toISOString().slice(0, 10) }),
+    cols: [
+      ["instituicao", "Instituição"],
+      ["ativo", "Ativo"],
+      ["_produto", "Produto", (_, r) => r.calculo?.tipo_nome ?? "–"],
+      ["_rende", "Rende", (_, r) => r.calculo?.rende ?? "–"],
+      ["_mes", "% ao mês", (_, r) => (r.calculo?.taxa_mensal_bruta ? pct(r.calculo.taxa_mensal_bruta) : "–")],
+      ["_mes_liq", "% ao mês líq.", (_, r) => (r.calculo?.taxa_mensal_bruta ? pct(r.calculo.taxa_mensal_liquida) : "–")],
+      ["valor", "Valor", money],
+      ["_ir", "IR/IOF hoje", (_, r) => money((r.calculo?.ir_devido ?? 0) + (r.calculo?.iof_devido ?? 0))],
+      ["_liq", "Líquido hoje", (_, r) => money(r.calculo?.valor_liquido ?? r.valor)],
     ],
-    cols: [["instituicao", "Instituição"], ["fixa_var", "Fixa/Var"], ["prazo_projeto", "Prazo"], ["ativo", "Ativo"], ["valor", "Valor", money]],
   },
   assets: {
     title: "Bem", path: "/api/assets",
@@ -1040,9 +1149,10 @@ async function loadResource(key) {
   html += "</tbody>";
   if (!items.length) html += `<caption class="muted">Nenhum registro — use “+ Adicionar”.</caption>`;
   table.innerHTML = html;
-  table.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
+  table.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", async () => {
     const item = items.find((i) => i.id == b.dataset.edit);
-    openForm("Editar " + r.title.toLowerCase(), r.fields, item, async (data) => {
+    await r.prepare?.();
+    openForm("Editar " + r.title.toLowerCase(), camposDe(r), item, async (data) => {
       await api(`${r.path}/${item.id}`, { method: "PUT", body: JSON.stringify(data) });
       reloadResourceGroup(key);
     });
@@ -1058,13 +1168,19 @@ async function loadResource(key) {
 function reloadResourceGroup(key) {
   loadResource(key);
   if (["investments", "assets", "debts"].includes(key)) loadPatrimonioSummary();
+  if (key === "investments") loadCarteira();
   if (key === "projects") loadProjetosSummary();
 }
 
-$$("[data-add]").forEach((btn) => btn.addEventListener("click", () => {
+/* Alguns recursos montam o formulário a partir de dados do servidor (o
+   catálogo de produtos, nos investimentos), então `fields` pode ser função. */
+const camposDe = (r) => (typeof r.fields === "function" ? r.fields() : r.fields);
+
+$$("[data-add]").forEach((btn) => btn.addEventListener("click", async () => {
   const key = btn.dataset.add;
   const r = RESOURCES[key];
-  openForm("Novo " + r.title.toLowerCase(), r.fields, null, async (data) => {
+  await r.prepare?.();
+  openForm("Novo " + r.title.toLowerCase(), camposDe(r), r.defaults?.() ?? null, async (data) => {
     await api(r.path, { method: "POST", body: JSON.stringify(data) });
     reloadResourceGroup(key);
   });
@@ -1087,9 +1203,55 @@ async function loadPatrimonioSummary() {
   ].map(([l, v, c]) => `<div class="tile"><span class="tile-label">${l}</span>
     <span class="tile-value ${c}">${money(v)}</span></div>`).join("");
 }
+/* ---------- Carteira: imposto e projeção ----------
+   Toda a conta vem pronta de /api/investments/summary — as regras de imposto
+   moram em src/Investimentos.php e não são reimplementadas aqui. */
+async function loadCarteira() {
+  const meses = +$("#p-meses").value || 12;
+  const s = await api(`/api/investments/summary?meses=${meses}`);
+  cachedCatalogo = s.catalogo;
+
+  const t = s.totais;
+  $("#p-carteira").innerHTML = [
+    ["Aplicado", money(t.aplicado), ""],
+    ["Saldo hoje", money(t.atual), ""],
+    ["Rende por mês", `${money(t.rende_por_mes_liquido)} · ${pct(t.taxa_mensal_media_liquida)}`, "pos"],
+    ["IR + IOF se resgatar hoje", money(t.ir + t.iof), t.ir + t.iof > 0 ? "neg" : ""],
+    ["Líquido hoje", money(t.liquido), ""],
+  ].map(([l, v, c]) => `<div class="tile"><span class="tile-label">${l}</span>
+    <span class="tile-value ${c}">${v}</span></div>`).join("");
+
+  const i = s.indices;
+  const nota = [
+    `Calculado com CDI ${pct(i.cdi)}, Selic ${pct(i.selic)}, IPCA ${pct(i.ipca)} e TR ${pct(i.tr)} ao ano`,
+    "— ajuste em Configuração → Índices de mercado.",
+    t.sem_data_aplicacao
+      ? `${t.sem_data_aplicacao} investimento(s) sem data de aplicação: o IR está sendo estimado na menor faixa (15%).`
+      : "",
+    "O “% ao mês líquido” desconta a faixa de IR de hoje; o imposto só é cobrado no resgate.",
+  ].filter(Boolean).join(" ");
+  $("#p-carteira-nota").textContent = nota;
+
+  const temComeCotas = s.projecao.some((p) => p.come_cotas > 0);
+  $("#p-projecao").innerHTML = s.projecao.length
+    ? `<thead><tr><th>Mês</th><th class="num">Saldo projetado</th>
+       ${temComeCotas ? '<th class="num">Come-cotas</th>' : ""}
+       <th class="num">Líquido se resgatar</th></tr></thead><tbody>` +
+      s.projecao.map((p) => `<tr>
+        <td>${esc(mesLabel(p.mes))}</td>
+        <td class="num">${money(p.saldo)}</td>
+        ${temComeCotas ? `<td class="num ${p.come_cotas ? "neg" : "muted"}">${p.come_cotas ? money(p.come_cotas) : "–"}</td>` : ""}
+        <td class="num pos">${money(p.liquido)}</td>
+      </tr>`).join("") + "</tbody>"
+    : `<caption class="muted">Cadastre um investimento com produto e taxa para ver a projeção.</caption>`;
+}
+
+$("#p-meses").addEventListener("change", loadCarteira);
+
 loaders.patrimonio = () => {
   ["investments", "assets", "debts"].forEach(loadResource);
   loadPatrimonioSummary();
+  loadCarteira();
 };
 
 /* ---------- Projetos ---------- */
@@ -1117,25 +1279,39 @@ loaders.registro = () => {
 };
 
 /* ---------- Configuração ---------- */
+const CAMPOS_PARAMETROS = ["receita_mensal", "custo_vida_mensal", "fator_reserva"];
+const CAMPOS_INDICES = ["taxa_cdi_anual", "taxa_selic_anual", "taxa_ipca_anual", "taxa_tr_anual"];
+
 async function loadSettings() {
   const s = await api("/api/settings");
-  const form = $("#s-form");
-  for (const k of ["receita_mensal", "custo_vida_mensal", "fator_reserva"]) {
-    form.elements[k].value = s[k] ?? 0;
+  for (const [form, campos] of [["#s-form", CAMPOS_PARAMETROS], ["#idx-form", CAMPOS_INDICES]]) {
+    const els = $(form).elements;
+    for (const k of campos) els[k].value = s[k] ?? 0;
   }
 }
-$("#s-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const f = e.target.elements;
-  await api("/api/settings", {
-    method: "PUT",
-    body: JSON.stringify({
-      receita_mensal: +f.receita_mensal.value || 0,
-      custo_vida_mensal: +f.custo_vida_mensal.value || 0,
-      fator_reserva: +f.fator_reserva.value || 6,
-    }),
+
+/* Os dois formulários mandam só os campos que têm. A API grava apenas o que
+   chega, então salvar os parâmetros não zera os índices e vice-versa. */
+function salvarSettings(seletor, campos, aoTerminar) {
+  $(seletor).addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target.elements;
+    const corpo = {};
+    for (const k of campos) corpo[k] = +f[k].value || 0;
+    await api("/api/settings", { method: "PUT", body: JSON.stringify(corpo) });
+    aoTerminar();
   });
-  alert("Parâmetros salvos.");
+}
+
+salvarSettings("#s-form", CAMPOS_PARAMETROS, () => alert("Parâmetros salvos."));
+salvarSettings("#idx-form", CAMPOS_INDICES, () => {
+  // Índice novo muda toda a projeção da carteira; recarrega para a pessoa ver
+  // o efeito sem precisar trocar de aba.
+  $("#idx-msg").innerHTML = ico("check") + '<span class="msg"></span>';
+  $("#idx-msg").querySelector(".msg").textContent =
+    "Índices salvos. A carteira já está sendo recalculada com eles.";
+  cachedCatalogo = null;
+  if ($("#tab-patrimonio").classList.contains("active")) loadCarteira();
 });
 
 const catFields = [
