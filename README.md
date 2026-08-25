@@ -52,6 +52,7 @@ promovida automaticamente enquanto ainda não houver nenhum admin no sistema.
 public/          DocumentRoot — o único diretório servido pela web
   index.php      front controller (todas as rotas)
   static/        interface: HTML, CSS, JS e Chart.js embarcado
+    tema.js      tema claro/escuro — carregado no <head>, antes do 1º paint
 src/             código da aplicação (fora do alcance da web)
   Controllers/   um por área da API
   Investimentos.php  produtos, tabelas de imposto e rentabilidade — fonte única
@@ -161,4 +162,6 @@ sobre **HTTPS**, que precisa ser terminado por um proxy na frente da aplicação
 - **Backend**: PHP 8.3 (Apache + mod_php), MySQL 8.4, PDO com prepared
   statements nativos
 - **Frontend**: HTML/CSS/JS estático + Chart.js embarcado (funciona offline),
-  tema claro/escuro automático
+  tema claro/escuro que segue o sistema operacional, com botão para trocar
+  na barra do topo (a escolha fica guardada; voltar ao tema do sistema faz o
+  app acompanhá-lo de novo)
