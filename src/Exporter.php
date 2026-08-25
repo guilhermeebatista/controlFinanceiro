@@ -183,6 +183,13 @@ final class Exporter
             return [null, Writer::NORMAL];
         }
 
+        // Algumas colunas guardam uma chave interna e mostram outra coisa na
+        // planilha: 'TESOURO_SELIC' vira "Tesouro Selic". A leitura de volta
+        // aceita as duas formas.
+        if (isset($c['saida'])) {
+            $v = ($c['saida'])($v);
+        }
+
         return match ((string) $c['tipo']) {
             'data'    => [(string) $v, Writer::DATA],
             'numero'  => [round((float) $v, 2), ($c['estilo'] ?? '') === 'dinheiro' ? Writer::DINHEIRO : Writer::NORMAL],

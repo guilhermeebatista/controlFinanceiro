@@ -66,9 +66,18 @@ A aba serve para definir tipo, grupo e meta de cada uma.
 
 | Aba | Colunas |
 |---|---|
-| Investimentos | `Instituição*`, `Ativo`, `Renda`, `Prazo / Projeto`, `Valor` |
+| Investimentos | `Instituição*`, `Ativo`, `Produto`, `Indexador`, `Taxa`, `Valor aplicado`, `Valor`, `Data da aplicação`, `Vencimento`, `Renda`, `Prazo / Projeto` |
 | Bens | `Bem*`, `Valor`, `Saldo devedor` |
 | Dívidas | `Dívida*`, `Nº de parcelas`, `Valor da parcela`, `Saldo devedor` |
+
+Em Investimentos, `Produto` (CDB, LCI, Tesouro Selic, Fundo DI, Ações...),
+`Indexador` (CDI, IPCA, PREFIXADO, SELIC, POUPANCA, NENHUM) e `Taxa` são o que
+permite ao sistema calcular imposto e rendimento mensal — ver
+[docs/investimentos.md](investimentos.md). O produto é escrito pelo nome
+("Tesouro Selic") e reconhecido também pela chave interna (`TESOURO_SELIC`) ou
+sem acento e caixa. `Data da aplicação` é o que define a faixa do IR, e
+`Valor aplicado` separa o principal do rendimento — o imposto só morde a
+diferença entre os dois.
 
 ### Instituições e Pessoas
 
@@ -79,7 +88,8 @@ cadastro — dizer que "Nubank" é um cartão de crédito, por exemplo.
 ### Parâmetros
 
 Uma linha por parâmetro, rótulo numa coluna e valor na outra:
-`Receita mensal`, `Custo de vida mensal` e `Fator da reserva`.
+`Receita mensal`, `Custo de vida mensal`, `Fator da reserva` e os índices de
+mercado usados nos investimentos — `CDI`, `Selic`, `IPCA` e `TR`, em % ao ano.
 
 ### Instruções e Exemplo
 
