@@ -291,6 +291,21 @@ foreach (['0.225', '0.175', '22,5%', '17,5%'] as $aliquota) {
 afirmar(str_contains($js, 'const pct ='), 'app.js define o helper pct() para formatar fracao como %');
 afirmar(str_contains($js, '/api/investments/summary'), 'app.js busca o resumo calculado da carteira');
 
+// ---- A aba ativa sobrevive ao F5 ----
+// Ela mora no hash da URL. Se alguem voltar a fixar o dashboard na entrada,
+// recarregar a pagina joga a pessoa para fora da aba em que estava.
+afirmar(str_contains($js, 'window.addEventListener("hashchange"'),
+    'app.js reage ao hashchange (F5 e botao voltar abrem a aba certa)');
+afirmar(str_contains($js, 'const abaDaUrl ='), 'app.js le a aba ativa da URL');
+afirmar((bool) preg_match('/await abrirAba\(abaDaUrl\(\)\)/', $js),
+    'a entrada no app abre a aba que estava na URL, nao uma aba fixa');
+afirmar(!preg_match('/dataset\.tab === "dashboard"/', $js),
+    'nenhum trecho forca a aba dashboard na entrada');
+// O nome vem da URL e vira seletor ("#tab-" + nome): sem validacao, "#admin"
+// abriria para quem nao e administrador.
+afirmar(str_contains($js, 'function abaValida'),
+    'app.js valida o nome da aba vindo da URL antes de usa-lo como seletor');
+
 afirmar((bool) preg_match('/^\.hint\s*\{/m', $css),
     'style.css define .hint (a linha de ajuda dos campos do formulario)');
 afirmar((bool) preg_match('/^\.inline-label\s*\{/m', $css),

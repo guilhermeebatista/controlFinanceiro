@@ -108,16 +108,54 @@ $("#menu-toggle").addEventListener("click", () => {
 });
 $("#sidebar-backdrop").addEventListener("click", fecharMenu);
 
-/* ---------- Tabs ---------- */
+/* ---------- Tabs ----------
+   A aba ativa mora no hash da URL (#lancamentos). Antes ela existia só na
+   memória da página, então qualquer F5 jogava a pessoa de volta no Dashboard,
+   no meio do que estivesse fazendo. Com o hash, recarregar mantém a aba, o
+   botão "voltar" do navegador anda entre elas e dá para guardar o link de uma
+   aba nos favoritos. */
 const loaders = {};
-$$("#tabs button").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    $$("#tabs button").forEach((b) => b.classList.toggle("active", b === btn));
-    $$(".tab").forEach((t) => t.classList.remove("active"));
-    $("#tab-" + btn.dataset.tab).classList.add("active");
-    loaders[btn.dataset.tab]?.();
-    fecharMenu();
-  });
+const ABA_PADRAO = "dashboard";
+const botoesDeAba = () => $$("#tabs button");
+
+/* Só nome que existe no menu e está visível. O hash vem da URL, que qualquer
+   um edita, e daqui ele vira seletor de elemento — "#tab-" + nome. Sem esta
+   checagem, "#foo" procuraria um elemento que não existe, e "#admin" abriria
+   para quem não é administrador uma aba que só o servidor sabe negar. */
+function abaValida(nome) {
+  const btn = botoesDeAba().find((b) => b.dataset.tab === nome);
+  return !!btn && !btn.hidden;
+}
+
+const abaDaUrl = () => {
+  const nome = decodeURIComponent(location.hash.slice(1));
+  return abaValida(nome) ? nome : ABA_PADRAO;
+};
+
+async function abrirAba(nome) {
+  if (!abaValida(nome)) nome = ABA_PADRAO;
+  botoesDeAba().forEach((b) => b.classList.toggle("active", b.dataset.tab === nome));
+  $$(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + nome));
+  fecharMenu();
+  await loaders[nome]?.();
+}
+
+/* Clicar só troca o hash; quem abre a aba é o hashchange — assim o clique, o
+   F5 e o botão voltar seguem exatamente o mesmo caminho. Clicar na aba que já
+   está aberta não muda o hash (e não dispara evento nenhum), então nesse caso
+   a recarga é feita na mão. */
+function irParaAba(nome) {
+  if (location.hash.slice(1) === nome) abrirAba(nome);
+  else location.hash = nome;
+}
+
+botoesDeAba().forEach((btn) =>
+  btn.addEventListener("click", () => irParaAba(btn.dataset.tab)));
+
+window.addEventListener("hashchange", () => {
+  // Na tela de login o shell está oculto: trocar o hash ali não pode disparar
+  // chamada de API que voltaria 401.
+  if (document.body.classList.contains("authed")) abrirAba(abaDaUrl());
 });
 
 /* ---------- Combo com busca ----------
@@ -1739,13 +1777,14 @@ async function enterApp(usuario, isAdmin = false) {
   $("#tab-admin-btn").hidden = !isAdmin;
   document.body.classList.add("authed");
   ajustarTopbar();   // só agora a barra existe no layout (antes o shell está oculto)
-  $$("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === "dashboard"));
-  $$(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-dashboard"));
   ["#f-year", "#l-year", "#l-month", "#pb-year", "#pb-month"].forEach((s) => {
     const el = $(s);
     if (el) el.innerHTML = "";
   });
-  await loadDashboard();
+  // A aba vem da URL: quem recarregou continua onde estava. O #tab-admin-btn
+  // já foi escondido acima, então abaValida() barra "#admin" de quem não é
+  // administrador e cai no Dashboard.
+  await abrirAba(abaDaUrl());
 }
 
 async function boot() {
