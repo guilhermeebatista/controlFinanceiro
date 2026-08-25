@@ -30,7 +30,7 @@ $esperados = [
     'i-inbox', 'i-settings', 'i-shield', 'i-wallet', 'i-mail', 'i-lock',
     'i-key', 'i-x', 'i-pencil', 'i-trash', 'i-check', 'i-refresh',
     'i-arrow-up', 'i-arrow-down', 'i-user', 'i-menu', 'i-plus',
-    'i-download', 'i-upload', 'i-sheet',
+    'i-download', 'i-upload', 'i-sheet', 'i-sun', 'i-moon',
 ];
 
 preg_match_all('/<symbol id="(i-[a-z-]+)"/', $html, $m);
@@ -160,6 +160,7 @@ $soIcone = [
     ['app.js', '/data-mfa="[^"]*"[^>]*aria-label=/',                      'botao de resetar MFA'],
     ['app.js', '/data-flag="[^"]*"[^>]*aria-label=/',                     'botao de promover/rebaixar'],
     ['index.html', '/id="menu-toggle"[^>]*aria-label=/',                  'botao hamburguer'],
+    ['index.html', '/id="tema-btn"[^>]*aria-label=/',                     'botao de tema claro/escuro'],
 ];
 foreach ($soIcone as [$arquivo, $padrao, $descricao]) {
     $conteudo = $arquivo === 'app.js' ? $js : $html;
@@ -253,6 +254,92 @@ afirmar((bool) preg_match('/--surface-1:\s*(#[0-9a-fA-F]{6})/', $blocoRaiz, $mSu
 $razaoMuted = razaoContraste($mMuted[1], $mSurface1[1]);
 afirmar($razaoMuted >= 4.5,
     "--muted sobre --surface-1 atinge 4.5:1 (WCAG AA para texto pequeno); calculado: {$razaoMuted}");
+
+// ---- Tema claro/escuro ----
+
+afirmar(is_file($raiz . '/tema.js'), 'existe o static/tema.js');
+$temaJs = (string) file_get_contents($raiz . '/tema.js');
+
+// O tema precisa estar aplicado antes do primeiro paint, senao quem usa tema
+// claro ve a tela escura piscar. Isso exige o script no <head>, sem defer e
+// antes do app.js — e nao da para fazer inline, porque a CSP e script-src 'self'.
+$posTema = strpos($html, '/static/tema.js');
+$posApp = strpos($html, '/static/app.js');
+$fimHead = strpos($html, '</head>');
+afirmar($posTema !== false && $fimHead !== false && $posTema < $fimHead,
+    'tema.js e carregado dentro do <head>');
+afirmar($posTema !== false && $posApp !== false && $posTema < $posApp,
+    'tema.js vem antes do app.js');
+afirmar(!preg_match('#<script[^>]*src="/static/tema\.js"[^>]*\b(defer|async)\b#', $html),
+    'tema.js nao usa defer/async (rodaria tarde demais e a tela piscaria)');
+afirmar(!preg_match('/<script(?![^>]*\ssrc=)[^>]*>[^<]*\S/', $html),
+    'nenhum <script> inline no HTML (a CSP script-src \'self\' recusaria)');
+
+// A escolha e guardada, mas localStorage estoura em aba anonima de alguns
+// navegadores. Tema e conforto: nao pode derrubar o app.
+afirmar(substr_count($temaJs, 'catch') >= 2,
+    'tema.js protege os acessos a localStorage com try/catch');
+afirmar(str_contains($temaJs, 'prefers-color-scheme: light'),
+    'tema.js consulta o tema do sistema operacional');
+afirmar(str_contains($temaJs, 'colorScheme'),
+    'tema.js ajusta color-scheme (barra de rolagem e seletor de data nativos)');
+afirmar(str_contains($js, 'window.addEventListener("temamudou"'),
+    'app.js reage a troca de tema (o Chart.js le a cor so uma vez, ao desenhar)');
+
+// As duas paletas tem de andar juntas. Um token de cor novo so no escuro fica
+// invisivel ou ilegivel no claro, e ninguem percebe ate abrir no outro tema.
+afirmar((bool) preg_match('/:root\[data-tema="claro"\]\s*\{(.*?)\n\}/s', $css, $mClaro),
+    'style.css define a paleta do tema claro');
+$blocoClaro = $mClaro[1] ?? '';
+
+$tokensDe = static function (string $bloco): array {
+    preg_match_all('/^\s*(--[a-z0-9-]+)\s*:/m', $bloco, $m);
+    return array_unique($m[1]);
+};
+$tokensEscuro = $tokensDe($blocoRaiz);
+$tokensClaro = $tokensDe($blocoClaro);
+// --radius* nao sao cor e nao mudam com o tema.
+$soDoEscuro = array_diff($tokensEscuro, $tokensClaro, ['--radius', '--radius-sm']);
+afirmar($soDoEscuro === [],
+    'todo token de cor do tema escuro tem par no claro; faltando: ' . implode(', ', $soDoEscuro));
+afirmar(array_diff($tokensClaro, $tokensEscuro) === [],
+    'o tema claro nao inventa token que o escuro nao tenha');
+
+// Cor de tema fora dos dois blocos de paleta e um vazamento: rgba branco no
+// meio do arquivo some no tema claro. Os scrims pretos (backdrop do dialog e
+// do menu) sao intencionais nos dois temas, entao so o branco e proibido.
+// Comentario fora: um comentario que MENCIONA a cor proibida nao e um vazamento.
+$cssSemPaletas = preg_replace('#/\*.*?\*/#s', '', str_replace([$blocoRaiz, $blocoClaro], '', $css)) ?? '';
+afirmar(!preg_match('/rgba\(\s*255\s*,\s*255\s*,\s*255/', $cssSemPaletas),
+    'nenhum rgba branco solto fora dos blocos de paleta');
+afirmar(!preg_match('/(?<![-\w])#fff\b|(?<![-\w])#ffffff\b/i', $cssSemPaletas),
+    'nenhum #fff solto fora dos blocos de paleta');
+
+// O tema claro passa nos mesmos criterios de contraste do escuro. Sem isto o
+// dourado #D4AF37, que brilha no preto, daria 1.9:1 sobre branco.
+$corDo = static function (string $bloco, string $token): string {
+    afirmar((bool) preg_match('/' . preg_quote($token, '/') . ':\s*(#[0-9a-fA-F]{6})/', $bloco, $m),
+        "a paleta define {$token} como hex");
+    return $m[1];
+};
+$pares = [
+    ['--muted', '--surface-1', 4.5, 'texto secundario sobre card'],
+    ['--text-secondary', '--surface-1', 4.5, 'texto de apoio sobre card'],
+    ['--text-primary', '--surface-1', 7.0, 'texto principal sobre card'],
+    ['--on-gold', '--gold', 4.5, 'texto do botao primario'],
+    ['--good', '--surface-1', 4.5, 'valor positivo sobre card'],
+    ['--bad', '--surface-1', 4.5, 'valor negativo sobre card'],
+    ['--gold', '--page', 3.0, 'dourado sobre o fundo da pagina'],
+];
+foreach ([['escuro', $blocoRaiz], ['claro', $blocoClaro]] as [$nome, $bloco]) {
+    foreach ($pares as [$fg, $bg, $min, $descricao]) {
+        $r = razaoContraste($corDo($bloco, $fg), $corDo($bloco, $bg));
+        afirmar($r >= $min, sprintf(
+            'tema %s: %s (%s sobre %s) atinge %.1f:1; calculado %.2f:1',
+            $nome, $descricao, $fg, $bg, $min, $r
+        ));
+    }
+}
 
 // ---- Planilha: baixar e importar ----
 // Os dois downloads sao <a href> e nao fetch(): sem JS eles continuam

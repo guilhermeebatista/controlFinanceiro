@@ -1,7 +1,13 @@
 /* ===== Tema preto & dourado =====
    O dourado e racionado: so estado ativo, acao primaria, anel de foco e a
    serie principal do grafico. Nunca em texto de corpo, nunca em gradiente,
-   nunca em sombra difusa. */
+   nunca em sombra difusa.
+
+   Sao duas paletas com os MESMOS nomes de token: o escuro aqui no :root e o
+   claro logo abaixo, em [data-tema="claro"]. Nenhuma cor de tema fica solta
+   fora destes dois blocos — quem escrever um rgba(255,255,255,...) no meio do
+   arquivo cria algo invisivel no tema claro. O atributo e escrito por
+   static/tema.js antes do primeiro paint. */
 :root {
   --page: #0A0A0B;
   --surface-1: #121213;   /* cards, menu lateral */
@@ -20,6 +26,19 @@
   --gold-border: rgba(212, 175, 55, 0.35);
   --on-gold: #0A0A0B;                       /* 9.4:1 sobre --gold */
 
+  /* Fundo da barra do topo: translucido sobre o conteudo que rola atras. */
+  --topbar-bg: rgba(17, 19, 24, 0.85);
+  /* Laviagem de superficie: hover de linha de tabela, fundo dos codigos de
+     backup, hover dos filtros. Clareia no escuro e escurece no claro. */
+  --wash: rgba(255, 255, 255, 0.05);
+  --wash-forte: rgba(255, 255, 255, 0.09);
+  /* Cor das sombras de elevacao (dialog, combo, popover). */
+  --sombra: rgba(0, 0, 0, 0.6);
+  /* Caixa de erro da tela de login. */
+  --erro-fundo: rgba(229, 83, 75, 0.15);
+  --erro-borda: rgba(229, 83, 75, 0.4);
+  --erro-texto: #FFFFFF;
+
   --radius: 12px;
   --radius-sm: 8px;
 
@@ -31,6 +50,46 @@
   --accent: #8A7A45;
   --good: #3FB950;
   --bad: #E5534B;
+}
+
+/* ---- Tema claro ----
+   Mesmo desenho, mesmo dourado racionado, so que sobre branco. O dourado
+   precisa escurecer: #D4AF37 sobre branco da 1.9:1 e sumiria. Todos os pares
+   abaixo foram medidos e passam no WCAG AA (varios em AAA); tests/
+   frontend_test.php refaz a conta a cada rodada. */
+:root[data-tema="claro"] {
+  --page: #F7F6F3;
+  --surface-1: #FFFFFF;   /* cards */
+  --surface-2: #F0EEE9;   /* inputs, cabecalho de tabela */
+  --surface-3: #E4E1D9;   /* hover */
+  --text-primary: #1A1A1C;    /* 17.4:1 sobre --surface-1 */
+  --text-secondary: #55535B;  /* 7.6:1 */
+  --muted: #62606A;           /* 6.2:1 sobre --surface-1 (WCAG AA) */
+  --border: rgba(0, 0, 0, 0.10);
+  --border-strong: rgba(0, 0, 0, 0.20);
+  --grid: rgba(0, 0, 0, 0.10);
+
+  --gold: #8A6A12;                          /* 4.7:1 sobre --page */
+  --gold-soft: #6E5410;                     /* hover: escurece, nao clareia */
+  --gold-dim: rgba(138, 106, 18, 0.10);
+  --gold-border: rgba(138, 106, 18, 0.40);
+  --on-gold: #FFFFFF;                       /* 5.1:1 sobre --gold */
+
+  --topbar-bg: rgba(255, 255, 255, 0.85);
+  --wash: rgba(0, 0, 0, 0.04);
+  --wash-forte: rgba(0, 0, 0, 0.07);
+  --sombra: rgba(26, 26, 28, 0.18);
+  --erro-fundo: rgba(196, 50, 31, 0.10);
+  --erro-borda: rgba(196, 50, 31, 0.35);
+  --erro-texto: #932516;
+
+  --series-receita: #1A7F37;
+  --series-despesa: #C4321F;
+  --seq-450: #8A6A12;
+  --seq-300: #B99A45;
+  --accent: #B99A45;
+  --good: #1A7F37;   /* 5.1:1 sobre --surface-1 */
+  --bad: #C4321F;    /* 5.5:1 sobre --surface-1 */
 }
 
 * { box-sizing: border-box; }
@@ -96,9 +155,9 @@ body {
 #au-submit { padding: 12px; margin-top: 4px; }
 .auth-error {
   margin: 0;
-  color: #fff;
-  background: rgba(229, 83, 75, 0.15);
-  border: 1px solid rgba(229, 83, 75, 0.4);
+  color: var(--erro-texto);
+  background: var(--erro-fundo);
+  border: 1px solid var(--erro-borda);
   padding: 9px 12px;
   border-radius: var(--radius-sm);
   font-size: 13px;
@@ -118,8 +177,8 @@ body {
   list-style: none;
   padding: 12px;
   margin: 12px 0;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--wash);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
 }
 
@@ -207,7 +266,7 @@ body {
   align-items: center;
   gap: 16px;
   padding: 12px 22px;
-  background: rgba(17, 19, 24, 0.85);
+  background: var(--topbar-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
@@ -246,7 +305,7 @@ body {
     flex-basis: auto;
     transform: translateX(-100%);
     transition: transform .22s ease;
-    box-shadow: 0 0 40px rgba(0, 0, 0, .5);
+    box-shadow: 0 0 40px var(--sombra);
   }
   #sidebar.open { transform: translateX(0); }
 
@@ -350,7 +409,7 @@ table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { padding: 8px 11px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
 th { position: sticky; top: 0; background: var(--surface-2); color: var(--text-secondary); font-weight: 600; z-index: 1; }
 td { color: var(--text-primary); }
-tr:hover td { background: rgba(255, 255, 255, 0.02); }
+tr:hover td { background: var(--wash); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 td.pos { color: var(--good); }
 td.neg { color: var(--bad); }
@@ -393,6 +452,9 @@ th.chk, td.chk { width: 34px; text-align: center; padding-right: 0; }
 .btn.primary { background: var(--gold); border: 1px solid var(--gold); color: var(--on-gold); font-weight: 600; }
 .btn.primary:hover { background: var(--gold-soft); border-color: var(--gold-soft); }
 .btn.small { padding: 4px 11px; font-size: 12px; }
+/* Botao que e so icone: sem o padding lateral de texto, e quadrado. */
+.btn.icon-only { display: inline-flex; align-items: center; padding: 5px 7px; }
+.btn.icon-only .ico { vertical-align: 0; }
 .btn.danger { color: var(--bad); }
 .btn.danger:hover { border-color: rgba(229, 83, 75, 0.5); background: rgba(229, 83, 75, 0.08); }
 .btn:disabled { opacity: .55; cursor: default; }
@@ -425,7 +487,7 @@ dialog {
   width: min(520px, 92vw);
   max-height: 88vh;
   overflow-y: auto;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+  box-shadow: 0 24px 60px var(--sombra);
 }
 dialog h3 { margin-top: 0; font-weight: 700; }
 dialog::backdrop { background: rgba(0, 0, 0, .6); backdrop-filter: blur(2px); }
@@ -474,7 +536,7 @@ body:has(dialog[open]) { overflow: hidden; }
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  box-shadow: 0 16px 44px rgba(0, 0, 0, .55);
+  box-shadow: 0 16px 44px var(--sombra);
 }
 .combo-list li {
   padding: 8px 10px;
@@ -511,7 +573,7 @@ body:has(dialog[open]) { overflow: hidden; }
   padding: 3px 4px;
   border-radius: 5px;
 }
-.th-filter:hover { background: rgba(255, 255, 255, .08); color: var(--text-primary); }
+.th-filter:hover { background: var(--wash-forte); color: var(--text-primary); }
 .th-filter.ativo { color: var(--on-gold); background: var(--gold); }
 
 .filtro-pop {
@@ -522,7 +584,7 @@ body:has(dialog[open]) { overflow: hidden; }
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, .6);
+  box-shadow: 0 18px 50px var(--sombra);
 }
 .filtro-pop .filtro-busca { width: 100%; min-width: 0; margin-bottom: 8px; }
 .filtro-todos {
@@ -548,7 +610,7 @@ body:has(dialog[open]) { overflow: hidden; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.filtro-itens label:hover { background: rgba(255, 255, 255, .05); }
+.filtro-itens label:hover { background: var(--wash); }
 .filtro-itens input, .filtro-todos input { accent-color: var(--gold); flex: 0 0 auto; }
 .filtro-acoes { display: flex; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 #s-form { grid-template-columns: 1fr; max-width: 320px; }
