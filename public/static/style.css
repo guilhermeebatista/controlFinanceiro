@@ -396,6 +396,20 @@ th.chk, td.chk { width: 34px; text-align: center; padding-right: 0; }
 .btn.danger { color: var(--bad); }
 .btn.danger:hover { border-color: rgba(229, 83, 75, 0.5); background: rgba(229, 83, 75, 0.08); }
 .btn:disabled { opacity: .55; cursor: default; }
+/* Os downloads da aba Configuracao sao <a> e nao <button>: baixar um arquivo
+   e navegar ate uma URL, e o link e o elemento certo para isso (e o unico que
+   funciona sem JS). A regra .btn nasceu para <button>, entao aqui vem so o
+   que falta ao link para ficar igual aos outros botoes. */
+a.btn { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; }
+/* Subtitulo dentro de um card, para separar duas acoes na mesma caixa. */
+h4.sub {
+  margin: 20px 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
 .row-actions { display: flex; gap: 6px; }
 
 dialog {

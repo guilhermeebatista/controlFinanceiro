@@ -21,12 +21,24 @@ final class Writer
     public const NORMAL = 0;
     public const NEGRITO = 1;
     public const DATA = 2;
+    public const CABECALHO = 3;
+    public const DINHEIRO = 4;
+    public const TITULO = 5;
 
     /** @var list<string> */
     private array $abas = [];
 
     /** @var array<int, array<int, array<int, array{valor: mixed, estilo: int}>>> aba => linha => coluna => célula */
     private array $celulas = [];
+
+    /** @var array<int, list<float>> aba => largura de cada coluna, a partir de A */
+    private array $larguras = [];
+
+    /** @var array<int, int> aba => última linha congelada no topo */
+    private array $congeladas = [];
+
+    /** @var array<int, string> aba => intervalo do filtro automático */
+    private array $filtros = [];
 
     private int $abaAtual = -1;
 
@@ -62,11 +74,39 @@ final class Writer
      *
      * @param list<string> $titulos
      */
-    public function cabecalho(int $linha, int $primeiraColuna, array $titulos): self
+    public function cabecalho(int $linha, int $primeiraColuna, array $titulos, int $estilo = self::NEGRITO): self
     {
         foreach ($titulos as $i => $titulo) {
-            $this->set($linha, $primeiraColuna + $i, $titulo, self::NEGRITO);
+            $this->set($linha, $primeiraColuna + $i, $titulo, $estilo);
         }
+        return $this;
+    }
+
+    /**
+     * Largura das colunas da aba atual, em caracteres, a partir da coluna A.
+     *
+     * Sem isto toda coluna sai com a largura padrão e "Participação de Lucros"
+     * aparece cortado — quem abre o arquivo acha que o dado veio truncado.
+     *
+     * @param list<float|int> $larguras
+     */
+    public function larguras(array $larguras): self
+    {
+        $this->larguras[$this->abaAtual] = array_map(floatval(...), $larguras);
+        return $this;
+    }
+
+    /** Mantém as primeiras linhas fixas ao rolar a aba atual. */
+    public function congelar(int $ateLinha = 1): self
+    {
+        $this->congeladas[$this->abaAtual] = $ateLinha;
+        return $this;
+    }
+
+    /** Liga o filtro automático da aba atual num intervalo ("A1:J1"). */
+    public function filtro(string $intervalo): self
+    {
+        $this->filtros[$this->abaAtual] = $intervalo;
         return $this;
     }
 
@@ -164,29 +204,45 @@ final class Writer
     }
 
     /**
-     * Três estilos: normal, negrito e data (DD/MM/YYYY).
-     * Os índices de cellXfs são o que as células referenciam em s="...".
+     * Os estilos das constantes desta classe, na ordem: normal, negrito, data,
+     * cabeçalho, dinheiro e título. Os índices de cellXfs são o que as células
+     * referenciam em s="..." — a ordem aqui é a das constantes e não pode ser
+     * remexida sem trocar os valores delas.
+     *
+     * O cabeçalho usa o preto e o dourado da interface: quem abre o arquivo
+     * reconhece de onde ele saiu.
      */
     private function styles(): string
     {
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            . '<numFmts count="1"><numFmt numFmtId="164" formatCode="DD/MM/YYYY"/></numFmts>'
-            . '<fonts count="2">'
+            . '<numFmts count="2">'
+            . '<numFmt numFmtId="164" formatCode="DD/MM/YYYY"/>'
+            . '<numFmt numFmtId="165" formatCode="&quot;R$&quot;\ #,##0.00"/>'
+            . '</numFmts>'
+            . '<fonts count="4">'
             . '<font><sz val="11"/><name val="Calibri"/></font>'
             . '<font><b/><sz val="11"/><name val="Calibri"/></font>'
+            . '<font><b/><sz val="11"/><color rgb="FFD4AF37"/><name val="Calibri"/></font>'
+            . '<font><b/><sz val="14"/><name val="Calibri"/></font>'
             . '</fonts>'
             // O Excel exige exatamente estes dois primeiros fills.
-            . '<fills count="2">'
+            . '<fills count="3">'
             . '<fill><patternFill patternType="none"/></fill>'
             . '<fill><patternFill patternType="gray125"/></fill>'
+            . '<fill><patternFill patternType="solid">'
+            . '<fgColor rgb="FF0A0A0B"/><bgColor indexed="64"/></patternFill></fill>'
             . '</fills>'
             . '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
             . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-            . '<cellXfs count="3">'
+            . '<cellXfs count="6">'
             . '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
             . '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
             . '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+            . '<xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1"'
+            . ' applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf>'
+            . '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+            . '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
             . '</cellXfs>'
             . '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
             . '</styleSheet>';
@@ -207,9 +263,47 @@ final class Writer
             $xml .= '</row>';
         }
 
+        $filtro = isset($this->filtros[$indice])
+            ? '<autoFilter ref="' . self::escapeXml($this->filtros[$indice]) . '"/>'
+            : '';
+
+        // A ordem dos elementos é fixada pelo schema (sheetViews, cols,
+        // sheetData, autoFilter). Fora dela o Excel recusa o arquivo inteiro.
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            . '<sheetData>' . $xml . '</sheetData></worksheet>';
+            . $this->sheetViews($indice)
+            . $this->cols($indice)
+            . '<sheetData>' . $xml . '</sheetData>'
+            . $filtro
+            . '</worksheet>';
+    }
+
+    /** Painel congelado: o cabeçalho continua visível ao rolar a tabela. */
+    private function sheetViews(int $indice): string
+    {
+        $linha = $this->congeladas[$indice] ?? 0;
+        if ($linha < 1) {
+            return '';
+        }
+        return '<sheetViews><sheetView workbookViewId="0">'
+            . '<pane ySplit="' . $linha . '" topLeftCell="A' . ($linha + 1) . '"'
+            . ' activePane="bottomLeft" state="frozen"/>'
+            . '</sheetView></sheetViews>';
+    }
+
+    private function cols(int $indice): string
+    {
+        $larguras = $this->larguras[$indice] ?? [];
+        if ($larguras === []) {
+            return '';
+        }
+        $xml = '';
+        foreach ($larguras as $i => $largura) {
+            $n = $i + 1;
+            $xml .= '<col min="' . $n . '" max="' . $n . '" width="'
+                . number_format($largura, 2, '.', '') . '" customWidth="1"/>';
+        }
+        return '<cols>' . $xml . '</cols>';
     }
 
     private function celulaXml(int $linha, int $coluna, mixed $valor, int $estilo): string

@@ -85,6 +85,15 @@
   </symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24">
+    <path d="M12 3v12"/><path d="m7 10.5 5 5 5-5"/><path d="M4 20h16"/>
+  </symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24">
+    <path d="M12 16V4"/><path d="m7 8.5 5-5 5 5"/><path d="M4 20h16"/>
+  </symbol>
+  <symbol id="i-sheet" viewBox="0 0 24 24">
+    <rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9.5h17"/><path d="M9.5 9.5V20"/>
+  </symbol>
 </svg>
 <div id="auth-screen">
   <div class="auth-card" id="auth-card">
@@ -356,15 +365,29 @@
   <section id="tab-configuracao" class="tab">
     <div class="grid-2">
       <div class="card wide">
-        <h3>Importar planilha</h3>
-        <p class="muted">Envie sua planilha “Controle Financ. Pessoal” (.xlsx ou .xlsm) para puxar
-          lançamentos, categorias, projetos e patrimônio direto para a sua conta.</p>
+        <h3><span><svg class="ico" aria-hidden="true"><use href="#i-sheet"/></svg> Planilha</span></h3>
+        <p class="muted">Um modelo só para as duas pontas: baixe, preencha no Excel, no LibreOffice ou
+          no Google Sheets e importe de volta. A exportação sai nesse mesmo modelo — serve de backup e
+          volta pela importação sem conversão nenhuma.</p>
+
+        <h4 class="sub">Baixar</h4>
+        <div class="filters">
+          <a class="btn" id="exp-modelo" href="/api/export/modelo" download>
+            <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg> Modelo em branco</a>
+          <a class="btn" id="exp-dados" href="/api/export" download>
+            <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg> Meus dados de hoje</a>
+          <span class="muted">O modelo em branco vem com instruções e um exemplo preenchido.</span>
+        </div>
+
+        <h4 class="sub">Importar</h4>
         <div class="filters">
           <input type="file" id="imp-file" accept=".xlsx,.xlsm">
-          <label><input type="checkbox" id="imp-replace"> Substituir meus lançamentos atuais antes de importar</label>
-          <button class="btn primary" id="imp-btn">Importar</button>
+          <label><input type="checkbox" id="imp-replace"> Substituir meus lançamentos, projetos e patrimônio</label>
+          <button class="btn primary" id="imp-btn">
+            <svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg> Importar</button>
         </div>
-        <p class="muted" id="imp-result"></p>
+        <p class="muted" id="imp-result">Aceita o modelo acima e também a planilha “Controle Financ. Pessoal”
+          (.xlsx ou .xlsm). Sem marcar “substituir”, o conteúdo é somado ao que já existe.</p>
       </div>
       <div class="card">
         <h3>Parâmetros</h3>

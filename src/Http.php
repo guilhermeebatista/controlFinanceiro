@@ -38,6 +38,31 @@ final class Http
     }
 
     /**
+     * Manda um arquivo do disco como download.
+     *
+     * O nome sugerido é montado pela aplicação, nunca pelo cliente, e ainda
+     * assim passa por um filtro: aspas ou quebra de linha no Content-Disposition
+     * permitiriam injetar cabeçalho na resposta.
+     */
+    public static function download(string $caminho, string $nome, string $mime): void
+    {
+        $tamanho = @filesize($caminho);
+        if ($tamanho === false) {
+            self::erro(500, 'Não foi possível gerar o arquivo.');
+        }
+
+        $seguro = preg_replace('/[^A-Za-z0-9._-]/', '_', $nome) ?? 'download';
+
+        header('Content-Type: ' . $mime);
+        header('Content-Disposition: attachment; filename="' . $seguro . '"');
+        header('Content-Length: ' . $tamanho);
+        // Planilha com dado financeiro não fica no cache do navegador nem em
+        // proxy nenhum no caminho.
+        header('Cache-Control: no-store, private');
+        readfile($caminho);
+    }
+
+    /**
      * Cabeçalhos de segurança aplicados a toda resposta.
      *
      * A CSP é a defesa de fundo contra XSS: mesmo que algum dado do usuário
