@@ -1193,7 +1193,9 @@ $("#imp-btn").addEventListener("click", async () => {
     return;
   }
   const replace = $("#imp-replace").checked;
-  if (replace && !confirm("Isso vai apagar TODOS os seus lançamentos atuais antes de importar. Continuar?")) return;
+  if (replace && !confirm(
+    "Isso vai apagar TODOS os seus lançamentos, projetos, investimentos, bens e dívidas " +
+    "antes de importar. Classificações, pessoas e instituições são mantidas. Continuar?")) return;
   const btn = $("#imp-btn");
   btn.disabled = true;
   result.textContent = "Importando… isso pode levar alguns segundos.";
@@ -1216,9 +1218,23 @@ $("#imp-btn").addEventListener("click", async () => {
     // textContent nao aceita markup: monta o icone via innerHTML e escreve o
     // texto no span, preservando o escape automatico dos valores.
     result.innerHTML = ico("check") + '<span class="msg"></span>';
+    // Só o que veio na planilha entra no resumo: listar "0 projetos" para
+    // quem mandou uma aba de lançamentos e nada mais é ruído.
+    const resumo = [
+      [data.lancamentos, "lançamento", "lançamentos"],
+      [data.categorias_novas, "categoria nova", "categorias novas"],
+      [data.projetos, "projeto", "projetos"],
+      [data.investimentos, "investimento", "investimentos"],
+      [data.bens, "bem", "bens"],
+      [data.dividas, "dívida", "dívidas"],
+      [data.pessoas, "pessoa", "pessoas"],
+      [data.instituicoes, "instituição", "instituições"],
+    ]
+      .filter(([n]) => n > 0)
+      .map(([n, um, varios]) => `${n} ${n === 1 ? um : varios}`)
+      .join(", ");
     result.querySelector(".msg").textContent =
-      `Importado: ${data.lancamentos} lançamentos, ${data.categorias_novas} categorias novas, ` +
-      `${data.projetos} projetos, ${data.investimentos} investimentos, ${data.bens} bens, ${data.dividas} dívidas.`;
+      resumo ? `Importado: ${resumo}.` : "A planilha foi lida, mas não havia nenhuma linha para importar.";
     input.value = "";
     $("#imp-replace").checked = false;
     await refreshLookups();

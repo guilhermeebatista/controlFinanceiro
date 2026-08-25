@@ -30,6 +30,7 @@ $esperados = [
     'i-inbox', 'i-settings', 'i-shield', 'i-wallet', 'i-mail', 'i-lock',
     'i-key', 'i-x', 'i-pencil', 'i-trash', 'i-check', 'i-refresh',
     'i-arrow-up', 'i-arrow-down', 'i-user', 'i-menu', 'i-plus',
+    'i-download', 'i-upload', 'i-sheet',
 ];
 
 preg_match_all('/<symbol id="(i-[a-z-]+)"/', $html, $m);
@@ -252,5 +253,21 @@ afirmar((bool) preg_match('/--surface-1:\s*(#[0-9a-fA-F]{6})/', $blocoRaiz, $mSu
 $razaoMuted = razaoContraste($mMuted[1], $mSurface1[1]);
 afirmar($razaoMuted >= 4.5,
     "--muted sobre --surface-1 atinge 4.5:1 (WCAG AA para texto pequeno); calculado: {$razaoMuted}");
+
+// ---- Planilha: baixar e importar ----
+// Os dois downloads sao <a href> e nao fetch(): sem JS eles continuam
+// funcionando, e a CSP (default-src 'none') nao atrapalha uma navegacao.
+// Se alguem trocar por um botao, o arquivo para de baixar em silencio.
+foreach (['/api/export/modelo' => 'modelo em branco', '/api/export' => 'dados da conta'] as $rota => $oque) {
+    afirmar((bool) preg_match('/<a[^>]*class="btn"[^>]*href="' . preg_quote($rota, '/') . '"[^>]*download/', $html),
+        "link de download do {$oque} aponta para {$rota}");
+}
+afirmar((bool) preg_match('/^a\.btn\s*\{([^}]*)\}/m', $css, $mLinkBtn),
+    'style.css tem a regra a.btn (o link precisa dela para parecer botao)');
+afirmar(str_contains($mLinkBtn[1] ?? '', 'text-decoration: none'),
+    'a.btn tira o sublinhado do link');
+
+afirmar((bool) preg_match('/id="imp-file"[^>]*accept="\.xlsx,\.xlsm"/', $html),
+    'o campo de importacao aceita .xlsx e .xlsm');
 
 echo "\nTodos os testes de frontend passaram.\n";

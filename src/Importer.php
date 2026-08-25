@@ -1,8 +1,15 @@
 <?php
 /**
- * Extrai os dados de uma planilha "Controle Financ. Pessoal" (.xlsx/.xlsm).
+ * Porta de entrada da importação e leitor do modelo antigo.
  *
- * As posições de coluna seguem o modelo original: o índice 0 é a coluna A,
+ * Dois formatos chegam aqui:
+ *
+ *   * o modelo do sistema (aba "Lançamentos"), lido por Modelo — é o que a
+ *     exportação gera e o que a interface oferece para baixar;
+ *   * a planilha "Controle Financ. Pessoal" (aba LANCAMENTO), de onde este
+ *     sistema nasceu, lida pelo resto deste arquivo.
+ *
+ * No modelo antigo as posições de coluna são fixas: o índice 0 é a coluna A,
  * então `col($linha, 1)` é a coluna B. Linhas que não casam com o formato são
  * puladas em silêncio — planilha de usuário tem cabeçalho, subtotal e anotação
  * no meio, e abortar na primeira estranheza tornaria a importação inútil.
@@ -13,10 +20,14 @@ declare(strict_types=1);
 namespace MinhasContas;
 
 use MinhasContas\Xlsx\Reader;
+use MinhasContas\Xlsx\Valor;
 
 final class Importer
 {
     /**
+     * O formato lido em ImportController::gravar(). O modelo novo ainda traz
+     * as chaves 'institutions' e 'people', que o modelo antigo não tem.
+     *
      * @return array{
      *   settings: array<string, float>,
      *   categories: list<array<string, mixed>>,
@@ -29,10 +40,26 @@ final class Importer
     {
         $wb = new Reader($caminho);
 
-        if (!$wb->temAba('LANCAMENTO')) {
-            Http::erro(400, "A planilha não tem a aba 'LANCAMENTO'. Use o modelo 'Controle Financ. Pessoal'.");
+        // A aba LANCAMENTO, no singular e em caixa alta, é a assinatura do
+        // modelo antigo; o modelo novo tem "Lançamentos". A verificação vem
+        // primeiro porque o arquivo antigo também tem uma aba PROJETOS, que
+        // o modelo novo reconheceria.
+        if ($wb->temAba('LANCAMENTO')) {
+            return self::lerModeloAntigo($wb);
+        }
+        if (Modelo::reconhece($wb)) {
+            return Modelo::ler($wb);
         }
 
+        Http::erro(400, 'A planilha não tem a aba "Lançamentos". Baixe o modelo em'
+            . ' Configuração → Planilha, ou envie a planilha "Controle Financ. Pessoal".');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function lerModeloAntigo(Reader $wb): array
+    {
         [$categorias, $receitaMensal, $custoVida] = self::lerConfiguracao($wb);
         $transacoes = self::lerLancamentos($wb);
         [$projetos, $fator] = self::lerProjetos($wb);
@@ -274,39 +301,32 @@ final class Importer
         return $linha[$i] ?? null;
     }
 
+    // A coerção de célula é a mesma dos dois modelos e mora em Xlsx\Valor;
+    // aqui ficam só os apelidos que este arquivo usa desde sempre.
+
     /** Texto aparado, ou null quando a célula está vazia. */
     private static function texto(mixed $v, int $max = 190): ?string
     {
-        if ($v === null || is_bool($v)) {
-            return null;
-        }
-        $t = trim((string) $v);
-        if ($t === '') {
-            return null;
-        }
-        // A planilha vem de fonte externa: normaliza para UTF-8 válido antes
-        // de chegar ao banco, que roda em STRICT e recusaria bytes inválidos.
-        if (!mb_check_encoding($t, 'UTF-8')) {
-            $t = mb_convert_encoding($t, 'UTF-8', 'UTF-8');
-        }
-        $t = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $t) ?? $t;
-        return mb_substr($t, 0, $max);
+        return Valor::texto($v, $max);
     }
 
+    /**
+     * Célula numérica de verdade. Continua estrito de propósito: no modelo
+     * antigo é este teste que separa lançamento de linha de subtotal.
+     */
     private static function numerico(mixed $v): bool
     {
-        return (is_int($v) || is_float($v)) && !is_bool($v);
+        return Valor::ehNumero($v);
     }
 
     private static function numero(mixed $v): float
     {
-        return self::numerico($v) ? (float) $v : 0.0;
+        return Valor::numeroOuZero($v);
     }
 
-    /** O leitor já devolve datas como 'YYYY-MM-DD'; texto solto é descartado. */
     private static function data(mixed $v): ?string
     {
-        return is_string($v) ? Http::normalizarData($v) : null;
+        return Valor::data($v);
     }
 
     private static function status(?string $v): string
