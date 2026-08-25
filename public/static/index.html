@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap">
 <link rel="stylesheet" href="/static/style.css">
+<!-- Antes de tudo e sem defer: escreve data-tema no <html> antes do primeiro
+     paint, senao quem usa tema claro ve a tela escura piscar no carregamento. -->
+<script src="/static/tema.js"></script>
 <script src="/static/vendor/chart.umd.js"></script>
 <script src="/static/vendor/qrcode.js"></script>
 </head>
@@ -93,6 +96,13 @@
   </symbol>
   <symbol id="i-sheet" viewBox="0 0 24 24">
     <rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9.5h17"/><path d="M9.5 9.5V20"/>
+  </symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>
+  </symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24">
+    <path d="M20 14.2A8.2 8.2 0 0 1 9.8 4 8.5 8.5 0 1 0 20 14.2Z"/>
   </symbol>
 </svg>
 <div id="auth-screen">
@@ -190,6 +200,10 @@
   <div class="userbox">
     <svg class="ico ico-sm" aria-hidden="true"><use href="#i-user"/></svg>
     <span id="user-name"></span>
+    <!-- O rotulo e o icone sao escritos pelo app.js conforme o tema em uso. -->
+    <button class="btn small icon-only" id="tema-btn" aria-label="Alternar tema">
+      <svg class="ico" aria-hidden="true"><use href="#i-moon"/></svg>
+    </button>
     <button class="btn small" id="logout-btn">Sair</button>
   </div>
 </header>

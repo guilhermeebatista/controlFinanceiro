@@ -1580,10 +1580,34 @@ async function loadAdminUsers() {
 }
 loaders.admin = loadAdminUsers;
 
-/* dark mode: redesenha gráficos com as cores do novo tema */
-window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  if ($("#tab-dashboard").classList.contains("active")) loadDashboard();
+/* ---------- Tema claro/escuro ----------
+   A troca em si mora em static/tema.js, que roda antes desta página existir —
+   é ele que decide entre o tema do sistema operacional e a escolha guardada.
+   Aqui fica só o botão e o que o CSS sozinho não resolve: o Chart.js lê as
+   cores uma única vez, na hora de desenhar, então o gráfico não muda de tema
+   por conta própria. */
+function pintarBotaoTema() {
+  const atual = Tema.atual();
+  const alvo = atual === "claro" ? "escuro" : "claro";
+  const btn = $("#tema-btn");
+  // O ícone mostra para onde o clique leva — lua quando se está no claro.
+  btn.querySelector("use").setAttribute("href", atual === "claro" ? "#i-moon" : "#i-sun");
+  btn.setAttribute("aria-label", `Mudar para o modo ${alvo}`);
+  btn.title = Tema.segueSistema()
+    ? `Modo ${atual}, seguindo o sistema. Clique para usar o modo ${alvo}.`
+    : `Modo ${atual}. Clique para usar o modo ${alvo}.`;
+}
+
+$("#tema-btn").addEventListener("click", () => Tema.alternar());
+
+/* Disparado tanto pelo botão quanto pelo sistema operacional trocando de tema
+   sozinho (macOS e Windows fazem isso ao anoitecer). */
+window.addEventListener("temamudou", () => {
+  pintarBotaoTema();
+  if (document.body.classList.contains("authed")) loaders[abaDaUrl()]?.();
 });
+
+pintarBotaoTema();
 
 /* ---------- Autenticação ---------- */
 let authMode = "login";

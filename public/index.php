@@ -152,7 +152,7 @@ function servirIndex(): void
         Http::erro(500, 'Interface indisponível.');
     }
 
-    $versionados = ['/static/style.css', '/static/app.js'];
+    $versionados = ['/static/style.css', '/static/app.js', '/static/tema.js'];
     $v = 0;
     foreach ($versionados as $p) {
         $arquivo = $estatico . substr($p, strlen('/static'));
