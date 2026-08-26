@@ -94,9 +94,15 @@ echo "==> 5/7  Reescrevendo o historico (planilhas + e-mail pessoal)"
 # src/Config.php desde cedo, entao sai da arvore num commit mas continua em
 # ~100 blobs antigos. --replace-text troca o texto em todo o historico.
 # Montado por concatenacao para o proprio arquivo nao virar uma ocorrencia.
-EMAIL_ANTIGO="guilherme.bsb2014""mix@gmail.com"
+TOKEN="bsb2014""mix"
 EXPR="$REPO/.git/filter-repo-expressoes.txt"
-printf '%s==>admin@seu-dominio.com\n' "$EMAIL_ANTIGO" > "$EXPR"
+{
+  printf 'guilherme.%s@gmail.com==>admin@seu-dominio.com\n' "$TOKEN"
+  # As versoes antigas DESTE script carregavam o token solto como padrao de
+  # busca. Sem esta segunda linha o proprio script mantem a verificacao
+  # vermelha para sempre, mesmo com o e-mail real ja removido.
+  printf '%s==>REDIGIDO\n' "$TOKEN"
+} > "$EXPR"
 
 python3 "$FILTER_REPO" --force \
   --replace-text "$EXPR" \
@@ -125,8 +131,9 @@ echo "    nenhuma planilha em nenhum commit de nenhuma branch"
 PADRAO_EMAIL="bsb2014""mix"
 if git grep -qI "$PADRAO_EMAIL" $(git rev-list --all) -- 2>/dev/null; then
   echo "    AINDA HA o e-mail pessoal no historico:" >&2
+  # git grep -l devolve "commit:caminho" (sem espaco), entao o corte e por ':'
   git grep -lI "$PADRAO_EMAIL" $(git rev-list --all) -- 2>/dev/null \
-    | awk '{print $2}' | sort -u | sed 's/^/      /' >&2
+    | cut -d: -f2 | sort -u | sed 's/^/      /' >&2
   echo "ERRO: limpeza incompleta. NAO faca push." >&2
   exit 1
 fi
