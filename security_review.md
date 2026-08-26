@@ -18,6 +18,12 @@ Cada afirmação abaixo aponta o arquivo onde a defesa está implementada. As
 seções marcadas com **verificado** foram exercitadas contra o sistema rodando;
 o método está em [Como foi verificado](#como-foi-verificado).
 
+> **Atualizado depois da revisão original.** Três coisas mudaram desde que este
+> documento foi escrito e estão refletidas abaixo: entrou verificação de e-mail
+> no cadastro, entrou segundo fator TOTP com códigos de backup, e a produção
+> passou a servir HTTPS por trás do Caddy. Recuperação de senha continua não
+> existindo — segue listada nos riscos residuais.
+
 ---
 
 ## 1. SQL Injection
@@ -408,16 +414,26 @@ vazamento; ZIP sem a aba `LANCAMENTO` → recusado com mensagem clara.
 
 Honestamente, o que **não** foi resolvido:
 
-1. **Sem HTTPS na configuração entregue.** O compose serve HTTP na porta 8000.
-   Em rede não confiável o cookie de sessão trafega em claro. O flag `Secure` já
-   liga sozinho sob HTTPS e a aplicação respeita `X-Forwarded-Proto`, mas
-   **colocar um proxy TLS na frente é obrigatório antes de expor isto à
-   internet.** Junto disso, vale adicionar HSTS.
+1. **HTTPS: resolvido em produção, ausente no compose de desenvolvimento.**
+   `docker-compose.prod.yml` sobe um Caddy à frente da aplicação, que emite e
+   renova o certificado sozinho para o domínio do `docker/Caddyfile`. O flag
+   `Secure` do cookie liga sozinho sob HTTPS e a aplicação respeita
+   `X-Forwarded-Proto`. O `docker-compose.yml` de desenvolvimento continua HTTP
+   puro — aceitável em `localhost`, e **não** deve ser exposto à internet.
+   Pendência remanescente: HSTS ainda não está configurado no Caddy.
 2. **`Origin` ausente não bloqueia.** Cliente que não manda `Origin` (curl,
    integração própria) passa pela camada 1 do CSRF. A defesa real nesse caso é o
    token sincronizado, que continua exigido — a camada 1 é conveniência.
-3. **Sem verificação de e-mail nem recuperação de senha.** Qualquer e-mail pode
-   ser cadastrado sem confirmação, e quem esquece a senha depende de um admin.
+3. **Sem recuperação de senha.** Não há fluxo de "esqueci minha senha": quem
+   perde o acesso depende de um admin redefinir pelo painel
+   ([src/Controllers/AdminController.php](src/Controllers/AdminController.php)).
+   Trocar a própria senha exige sessão ativa (`AuthController::trocarSenha`).
+   A verificação de e-mail no cadastro, que antes faltava aqui, passou a
+   existir (`AuthController::verificarEmail`, migração
+   `migrations/0001_verificacao_email.sql`), assim como o segundo fator TOTP
+   com códigos de backup de uso único ([src/Mfa.php](src/Mfa.php),
+   `migrations/0002_mfa.sql`) — o segredo é guardado cifrado, com a chave em
+   `MFA_ENCRYPTION_KEY`.
 4. **Sem limite de taxa fora do login.** Um usuário autenticado pode martelar
    `/api/import` ou consultas pesadas. Mitigado em parte pelos tetos de tamanho
    e de linhas, mas não há cota por conta.
@@ -434,12 +450,18 @@ Honestamente, o que **não** foi resolvido:
 7. **Sem trilha de auditoria.** Não há registro de quem promoveu quem, nem de
    quem excluiu qual conta. Para um sistema com dados financeiros de terceiros,
    é a lacuna que eu fecharia em seguida.
-8. **`Controle Financ. Pessoal 6.0 - R00.xlsm` está versionado no repositório**
-   e contém dados financeiros reais. Não é uma falha do código, mas se este
-   repositório for tornado público, esse arquivo (e os `backup_*.xlsx`) vazam
-   junto. Os backups já entraram no `.gitignore`; a planilha original ficou como
-   está porque removê-la exigiria reescrever o histórico do git — uma decisão
-   sua, não minha.
+8. **Planilhas com dados reais: removidas da árvore.** `Controle Financ. Pessoal
+   6.0 - R00.xlsm` e os dois `backup_guilherme_*.xlsx` continham lançamentos
+   financeiros reais e estavam versionados — o `.xlsm` desde o primeiro commit
+   do repositório. Foram removidos da árvore e os padrões correspondentes estão
+   no `.gitignore`.
+
+   **Atenção, e isto é o que decide se o repositório pode virar público:**
+   remover da árvore **não** remove do histórico. Enquanto o histórico não for
+   reescrito, qualquer pessoa com acesso ao repositório recupera os arquivos
+   com um `git show` no commit de origem. Antes de tornar este repositório
+   público é obrigatório reescrever o histórico (`git filter-repo` ou BFG) e
+   fazer force push.
 
 ---
 

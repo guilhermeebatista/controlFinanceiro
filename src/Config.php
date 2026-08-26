@@ -46,7 +46,7 @@ final class Config
      */
     public static function adminEmail(): string
     {
-        return self::env('ADMIN_EMAIL', 'admin@seu-dominio.com');
+        return self::env('ADMIN_EMAIL', '');
     }
 
     /**

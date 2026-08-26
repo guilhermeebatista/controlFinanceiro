@@ -4,5 +4,15 @@
 # Backups gerados por bin/export_backup.php
 backup_*.xlsx
 
+# Nenhuma planilha entra no repositório. Foi assim que a planilha original de
+# controle financeiro, com dados reais, acabou versionada desde o primeiro
+# commit. O modelo de importação/exportação é gerado em runtime por
+# src/Modelo.php, então não há planilha legítima para versionar; se um dia
+# houver, use dados fictícios e libere o arquivo com uma exceção
+# (ex.: !docs/modelo-exemplo.xlsx).
+*.xlsx
+*.xlsm
+*.xls
+
 # Banco SQLite da versão anterior (fonte da migração)
 data/

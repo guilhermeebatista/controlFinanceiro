@@ -121,6 +121,12 @@ final class Users
             return;
         }
         $alvo = mb_strtolower(Config::adminEmail());
+        // Sem ADMIN_EMAIL configurado não há a quem promover. Sair aqui evita
+        // que a comparação com string vazia case com uma conta cujo e-mail ou
+        // usuário também seja vazio — o que daria admin a quem não devia.
+        if ($alvo === '') {
+            return;
+        }
         Database::run(
             'UPDATE users SET is_admin = 1 WHERE LOWER(email) = ? OR LOWER(usuario) = ?',
             [$alvo, $alvo]
