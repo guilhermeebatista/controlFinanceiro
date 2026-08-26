@@ -46,11 +46,41 @@ if [ ! -x "$FILTER_REPO" ]; then
 fi
 
 echo "==> 4/7  Garantindo uma branch local para cada branch do remoto"
+# O filter-repo so reescreve o que estiver em refs/heads. Uma branch que exista
+# so no remoto seria perdida, entao materializamos todas localmente.
 git fetch origin --prune
+ATUAL="$(git branch --show-current)"
 for b in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin | grep -v '^HEAD$'); do
+  if [ "$b" = "$ATUAL" ]; then
+    # git recusa --force na branch em uso pelo worktree; ela ja esta no lugar.
+    echo "    $b: em uso pelo worktree, mantida como esta"
+    continue
+  fi
   git branch --force "$b" "origin/$b"
 done
 git branch -v
+
+echo "==> 4b/7 Levando a limpeza para o main"
+# Sem isto, o main reescrito continuaria sem os commits de limpeza e o
+# repositorio seguiria impublicavel. So avanca se for fast-forward.
+LIMPEZA="limpeza-para-publicacao"
+if git rev-parse --verify --quiet "$LIMPEZA" >/dev/null; then
+  if git merge-base --is-ancestor main "$LIMPEZA"; then
+    git branch --force main "$LIMPEZA"
+    echo "    main avancado para $LIMPEZA ($(git rev-parse --short main))"
+  else
+    echo "    ATENCAO: $LIMPEZA nao e descendente de main. Resolva o merge" >&2
+    echo "    manualmente antes de reescrever, senao o main sai sem a limpeza." >&2
+    exit 1
+  fi
+else
+  echo "    branch $LIMPEZA nao existe; assumindo que a limpeza ja esta no main"
+fi
+
+if git rev-parse --verify --quiet refs/stash >/dev/null; then
+  echo "    NOTA: existe um stash guardado. Ele nao vai para o GitHub, mas"
+  echo "    contem um .env antigo. Depois desta limpeza, considere: git stash drop"
+fi
 
 echo "==> 5/7  Reescrevendo o historico"
 ARGS=()

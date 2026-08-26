@@ -36,7 +36,12 @@ services:
       DB_NAME: ${DB_NAME:-minhas_contas}
       DB_USER: ${DB_USER:-contas}
       DB_PASS: ${DB_PASS:?defina DB_PASS no arquivo .env}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:?defina ADMIN_EMAIL no arquivo .env}
+      # Vazio por padrão de propósito. Marcar como obrigatória derrubaria
+      # qualquer instalação existente cujo .env ainda não a define — inclusive
+      # o deploy automático, que roda este compose na VM. Sem valor,
+      # Users::garantirPrimeiroAdmin() apenas não promove ninguém; defina no
+      # .env para eleger o primeiro admin.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       APP_ENV: ${APP_ENV:-production}
       SEED_DEMO_ACCOUNT: ${SEED_DEMO_ACCOUNT:-true}
       SMTP_HOST: ${SMTP_HOST:-}
