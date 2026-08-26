@@ -89,12 +89,23 @@ else
   echo "    branch $LIMPEZA nao existe; assumindo que a limpeza ja esta no main"
 fi
 
-echo "==> 5/7  Reescrevendo o historico (removendo toda planilha)"
-python3 "$FILTER_REPO" --force --filename-callback '
+echo "==> 5/7  Reescrevendo o historico (planilhas + e-mail pessoal)"
+# O e-mail pessoal estava como default em .env.example, docker-compose.yml e
+# src/Config.php desde cedo, entao sai da arvore num commit mas continua em
+# ~100 blobs antigos. --replace-text troca o texto em todo o historico.
+# Montado por concatenacao para o proprio arquivo nao virar uma ocorrencia.
+EMAIL_ANTIGO="guilherme.bsb2014""mix@gmail.com"
+EXPR="$REPO/.git/filter-repo-expressoes.txt"
+printf '%s==>admin@seu-dominio.com\n' "$EMAIL_ANTIGO" > "$EXPR"
+
+python3 "$FILTER_REPO" --force \
+  --replace-text "$EXPR" \
+  --filename-callback '
 import os
 ext = os.path.splitext(filename.decode("utf-8", "surrogateescape"))[1].lower()
 return None if ext in (".xlsx", ".xlsm", ".xls") else filename
 '
+rm -f "$EXPR"
 
 echo "==> 6/7  Verificando que NENHUMA planilha sobrou em NENHUMA ref"
 SOBRAS=$(git rev-list --objects --all \
@@ -109,13 +120,17 @@ if [ -n "$SOBRAS" ]; then
 fi
 echo "    nenhuma planilha em nenhum commit de nenhuma branch"
 
-# Conferencia extra: o e-mail pessoal tambem nao deve estar em lugar nenhum.
-if git grep -qI 'REDIGIDO' $(git rev-list --all) -- 2>/dev/null; then
-  echo "    AVISO: o e-mail pessoal ainda aparece em algum commit do historico." >&2
-  echo "    Isso nao bloqueia a publicacao, mas considere um --replace-text." >&2
-else
-  echo "    e-mail pessoal tambem nao aparece no historico"
+# O e-mail pessoal tambem nao deve sobrar. O padrao e montado por
+# concatenacao para que esta linha nao se conte como uma ocorrencia.
+PADRAO_EMAIL="bsb2014""mix"
+if git grep -qI "$PADRAO_EMAIL" $(git rev-list --all) -- 2>/dev/null; then
+  echo "    AINDA HA o e-mail pessoal no historico:" >&2
+  git grep -lI "$PADRAO_EMAIL" $(git rev-list --all) -- 2>/dev/null \
+    | awk '{print $2}' | sort -u | sed 's/^/      /' >&2
+  echo "ERRO: limpeza incompleta. NAO faca push." >&2
+  exit 1
 fi
+echo "    e-mail pessoal tambem nao aparece em nenhum commit"
 
 echo "==> 7/7  Restaurando o remote (NADA foi enviado ainda)"
 git remote get-url origin >/dev/null 2>&1 || git remote add origin "$REMOTE_URL"
