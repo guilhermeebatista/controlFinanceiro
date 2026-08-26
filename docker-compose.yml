@@ -43,6 +43,10 @@ services:
       # .env para eleger o primeiro admin.
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       APP_ENV: ${APP_ENV:-production}
+      # Endereço público, usado no link do e-mail de redefinição de senha.
+      # Precisa estar listado aqui: variável que fica só no .env e não é
+      # repassada nunca chega ao container, e o link some do e-mail sem erro.
+      APP_URL: ${APP_URL:-}
       SEED_DEMO_ACCOUNT: ${SEED_DEMO_ACCOUNT:-true}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
