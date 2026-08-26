@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 #
-# Remove as planilhas com dados financeiros reais de TODO o historico do git.
+# Remove TODA planilha do historico do git.
 #
-# Por que isso e necessario: o commit de limpeza tirou os arquivos da arvore,
-# mas nao do historico. Ate rodar isto, qualquer pessoa com acesso ao
-# repositorio recupera os arquivos com um `git show` no commit de origem —
-# e o .xlsm esta la desde o primeiro commit do projeto.
+# Por que existe: o commit de limpeza tirou os arquivos da arvore, mas nao do
+# historico. Ate rodar isto, qualquer pessoa com acesso ao repositorio recupera
+# os arquivos com um `git show` no commit de origem — e a planilha original
+# esta la desde o primeiro commit do projeto.
 #
-# NAO rode sem ler. Ele reescreve o historico: todo commit muda de SHA e o
-# push seguinte e um force push.
+# Remove por EXTENSAO (.xlsx/.xlsm/.xls), nao por lista de nomes. Uma versao
+# anterior usava lista fixa e deixou passar um backup cujo nome fugia do
+# padrao; a varredura de verificacao pegou. Extensao nao tem esse furo.
 #
-# Uso:  bash limpar-historico.sh
+# Pode ser rodado mais de uma vez com seguranca: detecta se o repositorio ja
+# foi reescrito e, nesse caso, NAO refaz o fetch — refazer traria o historico
+# antigo, com os arquivos, de volta.
+#
+# NAO rode sem ler. Reescreve o historico: todo commit muda de SHA e o push
+# seguinte e um force push.
 #
 set -euo pipefail
 
@@ -18,12 +24,12 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO"
 
 FILTER_REPO="${FILTER_REPO:-$REPO/.git/filter-repo-bin}"
+REMOTE_URL="${REMOTE_URL:-git@github.com:guilhermeebatista/controlFinanceiro.git}"
+LIMPEZA="limpeza-para-publicacao"
 
-ALVOS=(
-  "Controle Financ. Pessoal 6.0 - R00.xlsm"
-  "backup_guilherme_2026-07-08.xlsx"
-  "backup_guilherme_2026-07-09.xlsx"
-)
+# filter-repo deixa esta marca depois de rodar.
+JA_REESCRITO=0
+[ -e "$REPO/.git/filter-repo/already_ran" ] && JA_REESCRITO=1
 
 echo "==> 1/7  Conferindo que a arvore esta limpa"
 if [ -n "$(git status --porcelain)" ]; then
@@ -35,7 +41,8 @@ echo "==> 2/7  Backup (bundle com todas as refs)"
 BK="$REPO/../BACKUP-antes-da-reescrita-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BK"
 git bundle create "$BK/repo-completo.bundle" --all
-for f in "${ALVOS[@]}"; do [ -e "$f" ] && cp -a "$f" "$BK/" || true; done
+find . -maxdepth 1 \( -iname '*.xlsx' -o -iname '*.xlsm' -o -iname '*.xls' \) \
+  -exec cp -a {} "$BK/" \; 2>/dev/null || true
 echo "    backup em: $BK"
 
 echo "==> 3/7  Baixando git-filter-repo, se preciso"
@@ -45,87 +52,99 @@ if [ ! -x "$FILTER_REPO" ]; then
   chmod +x "$FILTER_REPO"
 fi
 
-echo "==> 4/7  Garantindo uma branch local para cada branch do remoto"
-# O filter-repo so reescreve o que estiver em refs/heads. Uma branch que exista
-# so no remoto seria perdida, entao materializamos todas localmente.
-git fetch origin --prune
-ATUAL="$(git branch --show-current)"
-for b in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin | grep -v '^HEAD$'); do
-  if [ "$b" = "$ATUAL" ]; then
-    # git recusa --force na branch em uso pelo worktree; ela ja esta no lugar.
-    echo "    $b: em uso pelo worktree, mantida como esta"
-    continue
-  fi
-  git branch --force "$b" "origin/$b"
-done
-git branch -v
+echo "==> 4/7  Branches locais"
+if [ "$JA_REESCRITO" -eq 1 ]; then
+  echo "    repositorio JA foi reescrito antes; pulando o fetch de proposito."
+  echo "    (buscar do remoto agora traria de volta o historico antigo, com"
+  echo "     os arquivos que acabamos de remover)"
+  git branch -v
+else
+  # filter-repo so reescreve o que estiver em refs/heads: uma branch que exista
+  # apenas no remoto seria perdida, entao materializamos todas localmente.
+  git fetch origin --prune
+  ATUAL="$(git branch --show-current)"
+  for b in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin | grep -v '^HEAD$'); do
+    if [ "$b" = "$ATUAL" ]; then
+      echo "    $b: em uso pelo worktree, mantida como esta"
+      continue
+    fi
+    git branch --force "$b" "origin/$b"
+  done
+  git branch -v
+fi
 
 echo "==> 4b/7 Levando a limpeza para o main"
-# Sem isto, o main reescrito continuaria sem os commits de limpeza e o
-# repositorio seguiria impublicavel. So avanca se for fast-forward.
-LIMPEZA="limpeza-para-publicacao"
+# Sem isto, o main reescrito sairia sem os commits de limpeza e o repositorio
+# continuaria impublicavel. So avanca se for fast-forward.
 if git rev-parse --verify --quiet "$LIMPEZA" >/dev/null; then
   if git merge-base --is-ancestor main "$LIMPEZA"; then
     git branch --force main "$LIMPEZA"
-    echo "    main avancado para $LIMPEZA ($(git rev-parse --short main))"
+    echo "    main em $(git rev-parse --short main)"
   else
     echo "    ATENCAO: $LIMPEZA nao e descendente de main. Resolva o merge" >&2
-    echo "    manualmente antes de reescrever, senao o main sai sem a limpeza." >&2
+    echo "    manualmente antes de reescrever." >&2
     exit 1
   fi
 else
   echo "    branch $LIMPEZA nao existe; assumindo que a limpeza ja esta no main"
 fi
 
-if git rev-parse --verify --quiet refs/stash >/dev/null; then
-  echo "    NOTA: existe um stash guardado. Ele nao vai para o GitHub, mas"
-  echo "    contem um .env antigo. Depois desta limpeza, considere: git stash drop"
-fi
+echo "==> 5/7  Reescrevendo o historico (removendo toda planilha)"
+python3 "$FILTER_REPO" --force --filename-callback '
+import os
+ext = os.path.splitext(filename.decode("utf-8", "surrogateescape"))[1].lower()
+return None if ext in (".xlsx", ".xlsm", ".xls") else filename
+'
 
-echo "==> 5/7  Reescrevendo o historico"
-ARGS=()
-for f in "${ALVOS[@]}"; do ARGS+=(--path "$f"); done
-python3 "$FILTER_REPO" --invert-paths "${ARGS[@]}" --force
-
-echo "==> 6/7  Verificando que os arquivos sumiram de TODO o historico"
-FALHOU=0
-for f in "${ALVOS[@]}"; do
-  N=$(git log --all --oneline -- "$f" | wc -l)
-  if [ "$N" -ne 0 ]; then echo "    AINDA PRESENTE: $f ($N commits)"; FALHOU=1
-  else echo "    limpo: $f"; fi
-done
-# varredura por extensao, para pegar qualquer planilha fora da lista acima
+echo "==> 6/7  Verificando que NENHUMA planilha sobrou em NENHUMA ref"
 SOBRAS=$(git rev-list --objects --all \
   | git cat-file --batch-check='%(objecttype) %(objectname) %(rest)' \
-  | awk '$1=="blob"{print $3}' | grep -iE '\.xlsx?$|\.xlsm$' || true)
-if [ -n "$SOBRAS" ]; then echo "    AINDA HA PLANILHAS NO HISTORICO:"; echo "$SOBRAS"; FALHOU=1; fi
-[ "$FALHOU" -eq 0 ] || { echo "ERRO: a limpeza nao ficou completa. Nao faca push." >&2; exit 1; }
+  | awk '$1=="blob" && $3!="" {print $3}' \
+  | grep -iE '\.(xlsx|xlsm|xls)$' | sort -u || true)
+if [ -n "$SOBRAS" ]; then
+  echo "    AINDA HA PLANILHAS NO HISTORICO:" >&2
+  echo "$SOBRAS" | sed 's/^/      /' >&2
+  echo "ERRO: a limpeza nao ficou completa. NAO faca push." >&2
+  exit 1
+fi
+echo "    nenhuma planilha em nenhum commit de nenhuma branch"
 
-echo "==> 7/7  Pronto para o force push (NADA foi enviado ainda)"
+# Conferencia extra: o e-mail pessoal tambem nao deve estar em lugar nenhum.
+if git grep -qI 'REDIGIDO' $(git rev-list --all) -- 2>/dev/null; then
+  echo "    AVISO: o e-mail pessoal ainda aparece em algum commit do historico." >&2
+  echo "    Isso nao bloqueia a publicacao, mas considere um --replace-text." >&2
+else
+  echo "    e-mail pessoal tambem nao aparece no historico"
+fi
+
+echo "==> 7/7  Restaurando o remote (NADA foi enviado ainda)"
+git remote get-url origin >/dev/null 2>&1 || git remote add origin "$REMOTE_URL"
+git remote -v
+
 cat <<'FIM'
 
-    O historico local esta limpo. Nada foi enviado ao GitHub.
+    Historico local limpo. Nada foi enviado ao GitHub.
 
-    Confira o que quiser e, quando estiver satisfeito:
+    Confira o que quiser (git log, git show) e, quando estiver satisfeito:
 
-        git remote add origin git@github.com:guilhermeebatista/controlFinanceiro.git
         git push --force --all origin
         git push --force --tags origin
 
-    Atencao ao que o force push NAO resolve sozinho:
+    O que o force push NAO resolve sozinho:
 
     1. Outros clones desta maquina (ex.: ~/projects/bills) continuam com o
        historico antigo. Em cada um:
            git fetch origin && git reset --hard origin/main
 
     2. Pull requests ja abertos no GitHub guardam os commits antigos e
-       continuam acessiveis. Feche e apague as branches de PR antigas.
+       continuam acessiveis pela interface. Feche-os e apague as branches.
 
-    3. O GitHub mantem os objetos orfaos em cache por um tempo. Se o
-       repositorio ja tiver sido publico em algum momento, peca ao suporte
-       a limpeza (Settings > pedir "garbage collection" via support).
+    3. O GitHub mantem objetos orfaos em cache por um tempo. Se o repositorio
+       ja tiver sido publico, peca a limpeza ao suporte.
 
-    4. Trate os dados dessas planilhas como ja expostos se o repositorio
-       tiver sido publico antes.
+    4. Se o repositorio ja foi publico alguma vez, trate os dados dessas
+       planilhas como expostos, independentemente desta limpeza.
+
+    5. O stash local ainda guarda um .env antigo:  git stash drop
 
 FIM
