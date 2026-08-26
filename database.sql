@@ -116,6 +116,32 @@ CREATE TABLE IF NOT EXISTS `email_verifications` (
 
 
 -- ---------------------------------------------------------------------
+--  password_resets — token de redefinição de senha, uso único
+-- ---------------------------------------------------------------------
+--  Um pedido por conta (PK em user_id): pedir de novo substitui o anterior.
+--  Guarda só o SHA-256 do token, nunca o token em si.
+--
+--  Aqui a busca É por token_hash sozinho, ao contrário do que a tabela
+--  email_verifications acima determina — e de propósito. Aquela regra existe
+--  porque o código de lá tem 6 dígitos: com espaço de 1 milhão, procurar só
+--  pelo hash deixaria alguém acertar QUALQUER código pendente de QUALQUER
+--  conta. O token daqui tem 32 bytes de random_bytes (256 bits), então não há
+--  o que adivinhar — e quem chega com o token ainda não se identificou, não
+--  existe user_id para restringir a consulta.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `password_resets` (
+  `user_id`    INT UNSIGNED NOT NULL,
+  `token_hash` CHAR(64)     NOT NULL,
+  `criado_em`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expira_em`  DATETIME     NOT NULL,
+  PRIMARY KEY (`user_id`),
+  KEY `idx_password_resets_token` (`token_hash`),
+  CONSTRAINT `fk_password_resets_user` FOREIGN KEY (`user_id`)
+    REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ---------------------------------------------------------------------
 --  mfa_pending — pendência entre a senha e o código MFA (ou o cadastro
 --  do autenticador, no primeiro login com MFA exigido)
 -- ---------------------------------------------------------------------

@@ -119,8 +119,38 @@
       <label>Senha<input id="au-pass" type="password" autocomplete="current-password" required></label>
       <p class="auth-error" id="au-error" hidden></p>
       <button type="submit" class="btn primary" id="au-submit">Entrar</button>
+      <button type="button" class="link-sutil" id="au-esqueci">Esqueci minha senha</button>
     </form>
     <p class="muted" id="au-hint"></p>
+    <p class="rodape-auth">
+      Ao criar uma conta você concorda com a
+      <a href="/static/privacidade.html">Política de Privacidade</a>.
+    </p>
+  </div>
+  <div class="auth-card" id="forgot-card" hidden>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-key"/></svg> Esqueceu a senha?</h1>
+    <p class="auth-tagline">Informe seu e-mail e enviaremos um link para escolher uma senha nova.</p>
+    <form id="forgot-form">
+      <label>E-mail<input id="forgot-email" type="email" autocomplete="email" required></label>
+      <p class="auth-error" id="forgot-error" hidden></p>
+      <button type="submit" class="btn primary">Enviar link</button>
+      <button type="button" class="link-sutil" data-voltar-login>Voltar para o login</button>
+    </form>
+    <p class="muted" id="forgot-ok" hidden>
+      Se existir uma conta com esse e-mail, o link chegou na caixa de entrada.
+      Ele vale por 60 minutos.
+    </p>
+  </div>
+  <div class="auth-card" id="reset-card" hidden>
+    <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-lock"/></svg> Nova senha</h1>
+    <p class="auth-tagline">Escolha uma senha nova para sua conta.</p>
+    <form id="reset-form">
+      <label>Código do e-mail<input id="reset-token" autocomplete="one-time-code" required></label>
+      <label>Nova senha<input id="reset-senha" type="password" autocomplete="new-password" required></label>
+      <p class="auth-error" id="reset-error" hidden></p>
+      <button type="submit" class="btn primary">Salvar nova senha</button>
+      <button type="button" class="link-sutil" data-voltar-login>Voltar para o login</button>
+    </form>
   </div>
   <div class="auth-card" id="verify-card" hidden>
     <h1><svg class="ico ico-lg" aria-hidden="true"><use href="#i-mail"/></svg> Confirme seu e-mail</h1>

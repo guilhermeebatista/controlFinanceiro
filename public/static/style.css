@@ -149,9 +149,14 @@ body {
   transition: all .15s;
 }
 .auth-tabs button.active { background: var(--surface-3); color: var(--text-primary); }
-#auth-form { display: flex; flex-direction: column; gap: 14px; }
-#auth-form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--text-secondary); }
-#auth-form input { padding: 11px 13px; }
+/* Vale para todo formulário dos cards de autenticação, não só o de login:
+   rótulo em cima do campo. Sem isto, um formulário novo herda o label inline
+   do navegador e os campos se sobrepõem. */
+#auth-form, #forgot-form, #reset-form { display: flex; flex-direction: column; gap: 14px; }
+#auth-form label, #forgot-form label, #reset-form label {
+  display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--text-secondary);
+}
+#auth-form input, #forgot-form input, #reset-form input { padding: 11px 13px; }
 #au-submit { padding: 12px; margin-top: 4px; }
 .auth-error {
   margin: 0;
@@ -164,6 +169,29 @@ body {
 }
 .auth-card .muted { text-align: center; margin: 16px 0 0; }
 .auth-card code { word-break: break-all; }
+
+/* Ação secundária dentro dos cards de autenticação: parece link, mas é
+   <button>, porque não navega — só troca de tela. */
+.link-sutil {
+  background: none;
+  border: none;
+  padding: 6px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.link-sutil:hover { color: var(--gold); }
+
+.rodape-auth {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+.rodape-auth a { color: var(--text-secondary); }
 
 .mfa-qr { display: flex; justify-content: center; margin: 12px 0; }
 .mfa-qr svg { width: min(220px, 100%); height: auto; }

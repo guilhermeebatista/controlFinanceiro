@@ -424,16 +424,27 @@ Honestamente, o que **não** foi resolvido:
 2. **`Origin` ausente não bloqueia.** Cliente que não manda `Origin` (curl,
    integração própria) passa pela camada 1 do CSRF. A defesa real nesse caso é o
    token sincronizado, que continua exigido — a camada 1 é conveniência.
-3. **Sem recuperação de senha.** Não há fluxo de "esqueci minha senha": quem
-   perde o acesso depende de um admin redefinir pelo painel
-   ([src/Controllers/AdminController.php](src/Controllers/AdminController.php)).
-   Trocar a própria senha exige sessão ativa (`AuthController::trocarSenha`).
-   A verificação de e-mail no cadastro, que antes faltava aqui, passou a
-   existir (`AuthController::verificarEmail`, migração
-   `migrations/0001_verificacao_email.sql`), assim como o segundo fator TOTP
-   com códigos de backup de uso único ([src/Mfa.php](src/Mfa.php),
-   `migrations/0002_mfa.sql`) — o segredo é guardado cifrado, com a chave em
-   `MFA_ENCRYPTION_KEY`.
+3. **Recuperação de senha: implementada.** O que antes constava aqui como
+   lacuna deixou de ser: existe o fluxo de "esqueci minha senha"
+   (`AuthController::esqueciSenha` / `redefinirSenha`, migração
+   `migrations/0004_recuperacao_senha.sql`). Decisões que sustentam a
+   segurança dele:
+   - token de 32 bytes de `random_bytes`, guardado só como SHA-256 — um
+     vazamento do banco não permite redefinir a senha de ninguém;
+   - uso único e validade de 60 minutos;
+   - resposta sempre genérica, para o endpoint não virar um oráculo de quem
+     tem conta no serviço;
+   - o link do e-mail é montado a partir de `APP_URL`, nunca do cabeçalho
+     `Host` da requisição — usar o `Host` deixaria um atacante apontar o
+     e-mail da vítima para o domínio dele, com o token válido dentro;
+   - redefinir encerra **todas** as sessões da conta, porque quem redefine
+     pode estar reagindo a um acesso indevido em curso.
+
+   Também já existiam, e não constavam neste documento: verificação de e-mail
+   no cadastro (`AuthController::verificarEmail`,
+   `migrations/0001_verificacao_email.sql`) e segundo fator TOTP com códigos
+   de backup de uso único ([src/Mfa.php](src/Mfa.php), `migrations/0002_mfa.sql`),
+   com o segredo cifrado sob `MFA_ENCRYPTION_KEY`.
 4. **Sem limite de taxa fora do login.** Um usuário autenticado pode martelar
    `/api/import` ou consultas pesadas. Mitigado em parte pelos tetos de tamanho
    e de linhas, mas não há cota por conta.

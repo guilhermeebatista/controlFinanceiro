@@ -1612,7 +1612,8 @@ pintarBotaoTema();
 /* ---------- Autenticação ---------- */
 let authMode = "login";
 
-const AUTH_CARDS = ["auth-card", "verify-card", "mfa-setup-card", "mfa-backup-card", "mfa-verify-card"];
+const AUTH_CARDS = ["auth-card", "forgot-card", "reset-card", "verify-card",
+  "mfa-setup-card", "mfa-backup-card", "mfa-verify-card"];
 
 function mostrarTela(id) {
   AUTH_CARDS.forEach((cid) => { $("#" + cid).hidden = cid !== id; });
@@ -1622,6 +1623,86 @@ function showAuth() {
   document.body.classList.remove("authed");
   $("#au-pass").value = "";
   mostrarTela("auth-card");
+}
+
+/* ---- Recuperação de senha ---- */
+
+function erroAuth(id, mensagem) {
+  const el = $("#" + id);
+  el.textContent = mensagem;
+  el.hidden = !mensagem;
+}
+
+$("#au-esqueci").addEventListener("click", () => {
+  // Aproveita o e-mail já digitado no login, se houver.
+  $("#forgot-email").value = $("#au-user").value.trim();
+  erroAuth("forgot-error", "");
+  $("#forgot-ok").hidden = true;
+  mostrarTela("forgot-card");
+});
+
+$$("[data-voltar-login]").forEach((b) =>
+  b.addEventListener("click", () => {
+    // Limpa a URL para o ?redefinir= não reabrir a tela num F5.
+    history.replaceState(null, "", location.pathname);
+    showAuth();
+  }));
+
+$("#forgot-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  erroAuth("forgot-error", "");
+  const res = await fetch("/api/auth/password/forgot", {
+    method: "POST",
+    headers: cabecalhos(),
+    body: JSON.stringify({ email: $("#forgot-email").value.trim().toLowerCase() }),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    // 429 é o freio contra usar o endpoint como canhão de e-mail.
+    erroAuth("forgot-error", d.detail || "Não foi possível enviar agora. Tente mais tarde.");
+    return;
+  }
+  // Mensagem deliberadamente igual para e-mail existente e inexistente: o
+  // servidor não revela quem tem conta, e a tela não pode revelar tampouco.
+  e.target.hidden = true;
+  $("#forgot-ok").hidden = false;
+});
+
+$("#reset-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  erroAuth("reset-error", "");
+  const res = await fetch("/api/auth/password/reset", {
+    method: "POST",
+    headers: cabecalhos(),
+    body: JSON.stringify({
+      token: $("#reset-token").value.trim(),
+      senha: $("#reset-senha").value,
+    }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    erroAuth("reset-error", d.detail || "Não foi possível redefinir a senha.");
+    return;
+  }
+  history.replaceState(null, "", location.pathname);
+  showAuth();
+  $("#au-hint").textContent = "Senha alterada. Entre com a senha nova.";
+});
+
+/* O link do e-mail chega como /?redefinir=<token>. Consome o token da URL e
+   devolve true se havia um.
+
+   Tira o token da URL em seguida: deixá-lo ali o expõe no histórico do
+   navegador e no cabeçalho Referer de qualquer requisição que a página faça.
+
+   Chamado de dentro de boot(), nunca no carregamento do script — boot()
+   termina em showAuth() quando não há sessão, e isso sobrescreveria a tela. */
+function consumirTokenDaUrl() {
+  const t = new URLSearchParams(location.search).get("redefinir");
+  if (!t) return false;
+  $("#reset-token").value = t;
+  history.replaceState(null, "", location.pathname);
+  return true;
 }
 
 function showVerify(email) {
@@ -1813,6 +1894,15 @@ async function enterApp(usuario, isAdmin = false) {
 
 async function boot() {
   setAuthMode("login");
+  // Link de redefinição tem prioridade sobre a sessão: quem chega por ele
+  // costuma estar justamente sem conseguir entrar, e quem pediu a troca
+  // estando logado quer trocar mesmo assim.
+  const redefinindo = consumirTokenDaUrl();
+  if (redefinindo) {
+    document.body.classList.remove("authed");
+    mostrarTela("reset-card");
+    return;
+  }
   try {
     const res = await fetch("/api/auth/me");
     if (res.ok) {

@@ -300,6 +300,104 @@ final class AuthController
         return self::validarSenha($v);
     }
 
+    /** Minutos de validade do token de redefinição. */
+    private const RESET_VALIDADE_MIN = 60;
+
+    /**
+     * Pede a redefinição de senha.
+     *
+     * Resposta sempre genérica, igual a reenviarVerificacao(): responder
+     * diferente para e-mail existente e inexistente transformaria este
+     * endpoint num oráculo de "quem tem conta aqui" — e num app de finanças
+     * isso já é informação sensível por si só.
+     */
+    public static function esqueciSenha(): void
+    {
+        $email = mb_strtolower(Http::texto('email', 190));
+
+        // O freio existe contra usar o endpoint como canhão de e-mail contra
+        // um terceiro, não contra adivinhação — não há o que adivinhar aqui.
+        $identificador = "senha_reset:{$email}";
+        Security::verificarBloqueioLogin($identificador);
+        Security::registrarFalhaLogin($identificador);
+
+        $u = Database::um(
+            'SELECT id, email FROM users
+              WHERE LOWER(email) = ? AND email_verificado_em IS NOT NULL',
+            [$email]
+        );
+
+        if ($u !== null) {
+            $token = Security::novoToken();
+            Database::run(
+                'REPLACE INTO password_resets (user_id, token_hash, expira_em)
+                 VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? MINUTE))',
+                [(int) $u['id'], hash('sha256', $token), self::RESET_VALIDADE_MIN]
+            );
+
+            $base = Config::appUrl();
+            $link = $base !== '' ? "{$base}/?redefinir=" . rawurlencode($token) : '';
+            $corpo = "Olá,\n\n"
+                . "Recebemos um pedido para redefinir a senha da sua conta no Minhas Contas.\n\n"
+                . ($link !== '' ? "Abra este link para escolher uma senha nova:\n{$link}\n\n" : '')
+                . "Se preferir, cole este código na tela de redefinição:\n{$token}\n\n"
+                . 'Ele vale por ' . self::RESET_VALIDADE_MIN . " minutos e só pode ser usado uma vez.\n\n"
+                . "Se não foi você quem pediu, ignore esta mensagem: sua senha continua a mesma.\n";
+
+            // Falha de SMTP não pode virar erro para quem pediu — senão a
+            // resposta deixa de ser genérica e volta a revelar quem tem conta.
+            try {
+                Mailer::enviar((string) $u['email'], 'Redefinir sua senha — Minhas Contas', $corpo);
+            } catch (\Throwable $e) {
+                error_log('[senha_reset] falha ao enviar e-mail: ' . $e->getMessage());
+            }
+        }
+
+        Http::json(['status' => 'ok']);
+    }
+
+    /**
+     * Consome o token e grava a senha nova.
+     *
+     * A consulta é por token_hash sozinho, sem user_id, porque quem chega aqui
+     * ainda não se identificou. Isso só é seguro porque o token tem 256 bits —
+     * ver o comentário de password_resets em database.sql, que explica por que
+     * a regra oposta vale para o código de 6 dígitos da verificação de e-mail.
+     */
+    public static function redefinirSenha(): void
+    {
+        $token = Http::texto('token', 128);
+        $nova  = self::validarSenha(self::senhaDoCorpo('senha'));
+
+        $pedido = Database::um(
+            'SELECT user_id FROM password_resets
+              WHERE token_hash = ? AND expira_em > UTC_TIMESTAMP()',
+            [hash('sha256', $token)]
+        );
+        if ($pedido === null) {
+            Http::erro(400, 'Link inválido ou expirado. Peça a redefinição de novo.');
+        }
+
+        /** @var array<string, mixed> $pedido */
+        $uid = (int) $pedido['user_id'];
+
+        Database::transacao(static function () use ($uid, $nova): void {
+            // salt = '' aposenta o esquema antigo, igual a trocarSenha() e ao
+            // painel de admin. Gravar só senha_hash deixaria a conta sem login.
+            Database::run(
+                "UPDATE users SET senha_hash = ?, salt = '' WHERE id = ?",
+                [Auth::hashSenha($nova), $uid]
+            );
+            // Uso único.
+            Database::run('DELETE FROM password_resets WHERE user_id = ?', [$uid]);
+            // Quem redefine a senha pode estar reagindo a um acesso indevido:
+            // derrubar todas as sessões corta o invasor que ainda esteja logado.
+            Database::run('DELETE FROM sessions WHERE user_id = ?', [$uid]);
+        });
+
+        Http::json(['status' => 'ok']);
+    }
+
     public static function validarSenha(string $senha): string
     {
         if (mb_strlen($senha) < self::SENHA_MIN) {

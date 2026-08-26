@@ -50,6 +50,24 @@ final class Config
     }
 
     /**
+     * Endereço público da aplicação, usado para montar o link do e-mail de
+     * redefinição de senha.
+     *
+     * Vem de configuração, nunca do cabeçalho Host da requisição: quem pede
+     * "esqueci minha senha" controla esse cabeçalho, e montar o link com ele
+     * deixaria um atacante fazer o e-mail da vítima apontar para o domínio
+     * dele — com o token válido dentro. É a injeção de Host clássica dos
+     * fluxos de redefinição.
+     *
+     * Vazio é aceitável: sem APP_URL o e-mail vai só com o token, para colar
+     * na tela. O fluxo continua funcionando, só fica menos confortável.
+     */
+    public static function appUrl(): string
+    {
+        return rtrim(self::env('APP_URL', ''), '/');
+    }
+
+    /**
      * Cria e alimenta a conta de demonstração 'planilha' a cada boot.
      * Desligar em produção depois da configuração inicial: caso contrário,
      * excluir a conta não pega — ela volta no próximo restart do container.
